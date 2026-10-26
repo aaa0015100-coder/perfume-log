@@ -17,6 +17,9 @@
   --ok:#1d7344; --ok-bg:#def2e6; --info:#2a5a86; --info-bg:#e3edf7;
   --f-body:"IBM Plex Sans","Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
   --f-mono:"IBM Plex Mono","Noto Sans TC",ui-monospace,Menlo,Consolas,monospace;
+  --c1:#2a78d6; --c2:#eb6834; --c3:#1baf7a; --c4:#eda100; --c5:#e87ba4; --c6:#6250d6; --c0:#8a8178;
+  --c1-ink:#ffffff; --c2-ink:#1a120c; --c3-ink:#1a120c; --c4-ink:#1a120c; --c5-ink:#1a120c; --c6-ink:#ffffff; --c0-ink:#1a120c;
+  --h1:#c8a27c; --h2:#9a6b45; --h3:#6b4428;
   --s3:#1d6b45; --s3-ink:#ffffff; --s2:#9ccf72; --s2-ink:#14301c; --s1:#f0c64a; --s1-ink:#3a2c00; --s0:#d9534f; --s0-ink:#ffffff;
   --r:10px;
 }
@@ -24,12 +27,18 @@
   --bg:#14100d; --surface:#1d1814; --surface2:#241e19; --ink:#e1ebe8; --muted:#94a6a1; --line:#3a3029;
   --accent:#d2a57c; --accent-ink:#22160c; --accent-weak:#3a2a1c;
   --warn:#f2b45c; --warn-bg:#382810; --danger:#ff8b80; --danger-bg:#3b1a17;
-  --ok:#6fd39a; --ok-bg:#142e1e; --info:#93bde6; --info-bg:#16283a; color-scheme:dark;}}
+  --ok:#6fd39a; --ok-bg:#142e1e; --info:#93bde6; --info-bg:#16283a; color-scheme:dark;
+  --c1:#3987e5; --c2:#d95926; --c3:#199e70; --c4:#c98500; --c5:#d55181; --c6:#9085e9; --c0:#7d746b;
+  --c1-ink:#14100d; --c2-ink:#14100d; --c3-ink:#14100d; --c4-ink:#14100d; --c5-ink:#14100d; --c6-ink:#14100d; --c0-ink:#14100d;
+  --h1:#6a4b30; --h2:#9f7552; --h3:#d9b089;}}
 :root[data-theme="dark"]{
   --bg:#14100d; --surface:#1d1814; --surface2:#241e19; --ink:#e1ebe8; --muted:#94a6a1; --line:#3a3029;
   --accent:#d2a57c; --accent-ink:#22160c; --accent-weak:#3a2a1c;
   --warn:#f2b45c; --warn-bg:#382810; --danger:#ff8b80; --danger-bg:#3b1a17;
-  --ok:#6fd39a; --ok-bg:#142e1e; --info:#93bde6; --info-bg:#16283a; color-scheme:dark;}
+  --ok:#6fd39a; --ok-bg:#142e1e; --info:#93bde6; --info-bg:#16283a; color-scheme:dark;
+  --c1:#3987e5; --c2:#d95926; --c3:#199e70; --c4:#c98500; --c5:#d55181; --c6:#9085e9; --c0:#7d746b;
+  --c1-ink:#14100d; --c2-ink:#14100d; --c3-ink:#14100d; --c4-ink:#14100d; --c5-ink:#14100d; --c6-ink:#14100d; --c0-ink:#14100d;
+  --h1:#6a4b30; --h2:#9f7552; --h3:#d9b089;}
 
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;-webkit-text-size-adjust:100%}
@@ -206,7 +215,7 @@ table.grid td.hl{background:var(--accent-weak)}
 .top .brand{background:none;color:inherit;padding:0;border-radius:0;font-size:inherit}
 [hidden]{display:none!important}
 .mt-s{margin-top:6px}
-.stack{display:grid;gap:12px}
+.stack{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
 .field input.txt,.field input[type=search],.field input[type=date]{font-family:var(--f-body)}
 .field textarea{width:100%;min-height:76px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface2);color:var(--ink);font:inherit;resize:vertical}
 .field textarea.paste{font-family:var(--f-mono);font-size:.84rem}
@@ -238,6 +247,31 @@ table.grid td.hl{background:var(--accent-weak)}
 .pickhead{font-size:1rem}
 .wseason{font-size:.92rem;padding:8px 0}
 .field select.err{border-color:var(--danger)}
+.calnav{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.calnav .btn{padding:4px 12px;font-size:1rem;line-height:1.2}
+.calt{font-size:1rem;min-width:7.5em;text-align:center}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.calh{font-size:.72rem;color:var(--muted);text-align:center}
+.cday{min-height:56px;min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:3px 2px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;color:inherit}
+.cday .dn{font-family:var(--f-mono);font-size:.72rem;color:var(--muted);line-height:1.2}
+.cday.today{border:2px solid var(--accent);padding:2px 1px 3px}
+.cday.today .dn{color:var(--accent);font-weight:700}
+.cday.future{background:var(--surface2)}
+.cday[aria-pressed="true"]{background:var(--accent-weak)}
+.cdots{display:flex;flex-wrap:wrap;gap:2px;justify-content:center;align-items:center}
+.cdot{width:18px;height:18px;border-radius:50%;display:inline-grid;place-items:center;font-size:.6rem;font-weight:700;line-height:1;flex:0 0 auto;box-shadow:0 0 0 1px var(--surface)}
+.cdot.g1{background:var(--c1);color:var(--c1-ink)} .cdot.g2{background:var(--c2);color:var(--c2-ink)} .cdot.g3{background:var(--c3);color:var(--c3-ink)}
+.cdot.g4{background:var(--c4);color:var(--c4-ink)} .cdot.g5{background:var(--c5);color:var(--c5-ink)} .cdot.g6{background:var(--c6);color:var(--c6-ink)} .cdot.g0{background:var(--c0);color:var(--c0-ink)}
+.cmore{font-family:var(--f-mono);font-size:.62rem;color:var(--muted)}
+.legend .cdot{vertical-align:middle;margin-right:2px}
+.heatwrap{padding-bottom:4px;max-width:100%}
+.heatin{display:inline-block}
+.heatm{display:grid;grid-auto-flow:column;grid-auto-columns:11px;gap:2px;height:16px;font-size:.64rem;color:var(--muted)}
+.heatm span{white-space:nowrap;overflow:visible}
+.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,11px);grid-auto-columns:11px;gap:2px}
+.hc{width:11px;height:11px;border-radius:2px;border:0;padding:0;cursor:pointer;background:var(--surface2);box-shadow:inset 0 0 0 1px var(--line)}
+.hc.l1{background:var(--h1);box-shadow:none} .hc.l2{background:var(--h2);box-shadow:none} .hc.l3{background:var(--h3);box-shadow:none}
+.hc.key{display:inline-block;cursor:default}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .tiles .rsum{margin:0}
 .statgrid{grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
@@ -297,7 +331,7 @@ pre.tpl{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--surface2);b
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <script>
-const APP_VERSION = "1.0";
+const APP_VERSION = "1.1";
 const UPDATED = "2026-10-26";
 const SCHEMA = 2;
 
@@ -312,12 +346,16 @@ const STRENGTH = [["weak","弱"],["mid","中"],["strong","強"]];
 const LAYERS = [["top","前調"],["mid","中調"],["base","後調"]];
 const SORTS = [["new","最近新增"],["worn","最近穿著"],["rating","評分"],["buy","購買日期"],["name","名稱"]];
 const OCCASIONS = [["work","上班／上學"],["casual","休閒"],["date","約會"],["party","聚會"],["formal","正式場合"],["home","在家"],["travel","旅行"],["other","其他"]];
+const FAM_GROUPS = [["g1","柑橘／綠意／水生","柑",["citrus","green","aquatic"]],["g2","木質／皮革","木",["woody","leather"]],["g3","馥奇／西普","馥",["fougere","chypre"]],["g4","琥珀／美食／辛香","琥",["amber","gourmand","spicy"]],["g5","花香／果香","花",["floral","fruity"]],["g6","麝香／粉香","麝",["musky","powdery"]]];
+const GROUP_NONE = ["g0","未選家族","－",[]];
+function groupOf(it){ const f = it && it.families[0]; return FAM_GROUPS.find(g => g[3].includes(f)) || GROUP_NONE; }
 const DEFAULT_MONTHS = ["winter","winter","spring","spring","spring","summer","summer","summer","autumn","autumn","autumn","winter"];
 const WEEK = "日一二三四五六";
 const label = (list, v) => { const f = list.find(x => x[0] === v); return f ? f[1] : ""; };
 const keysOf = list => list.map(x => x[0]);
 
 const CHANGELOG = [
+  ["1.1", "2026-10-26", "日誌月曆（每天用色點＋字標出香調家族類別、可只看某瓶、點日期看當天紀錄或補記）、統計新增全年穿香圖（近一年每天一格，顏色深淺＝次數，含最長連續天數）。"],
   ["1.0", "2026-10-26", "正式版。完整測試：320／390／768／1280 px × 淺色／深色，五個分頁的每個選項與操作全部點過；新增→重新整理、刪除→復原、匯出→清空→匯入（合併／取代）、壞檔匯入、v0.1 資料升級、500 筆資料效能。"],
   ["0.3", "2026-10-26", "統計分頁（擁有數、穿香次數、穿最多次與每次成本、最常穿的香調家族與香材、每年花費，可切換全部／今年／近 90 天）、願望清單欄位（想買的目標價格、在哪裡試過）。"],
   ["0.2", "2026-10-26", "穿香日誌（收藏卡片一鍵「今天噴」、日誌分頁可補場合／噴幾下／持香／心得）、今天噴什麼（依季節與時段挑久沒噴的）、季節月份設定、最近穿著排序、離開未儲存的表單前先確認。"],
@@ -812,7 +850,7 @@ const UI = {
   imp: null, impConfirm: false, expPhotos: true, theme: "auto",
   loadError: "", readOnly: false, pendingDel: null, listY: 0, busy: false,
   wdraft: null, wIsNew: false, wErr: false, snap: "", undoFn: null,
-  logLimit: 100, statPeriod: "all", statAll: false, pickOffset: 0, pickSeason: "", pickTime: "", _wi: null, _wiSrc: null
+  logView: "cal", calMonth: "", calDay: "", calItem: "", logLimit: 100, statPeriod: "all", statAll: false, pickOffset: 0, pickSeason: "", pickTime: "", _wi: null, _wiSrc: null
 };
 function WI(){ if(UI._wiSrc !== S.wears){ UI._wiSrc = S.wears; UI._wi = wearIndex(S.wears); } return UI._wi; }
 function nowTime(){ const h = new Date().getHours(); return h >= 6 && h < 18 ? "day" : "night"; }
@@ -998,28 +1036,98 @@ function renderSettings(){
 </div>`;
 }
 function thumbHTML(it){ return `<span class="thumb${it ? "" : " sm"}">${it && it.hasPhoto ? `<img data-photo="${esc(it.id)}" alt="">` : BOTTLE}</span>`; }
-function renderLog(){
-  const items = new Map(S.items.map(x => [x.id, x])), months = S.settings.seasonMonths;
-  const canAdd = S.items.length > 0;
-  const head = `<div class="toolbar listhead"><span class="count">${S.wears.length ? `共 ${S.wears.length} 筆紀錄` : ""}</span><button class="btn solid" type="button" data-act="wear-new"${canAdd ? "" : " disabled"}>＋ 記錄</button></div>`;
-  if(!S.wears.length) return renderNotices() + head + `<div class="card empty"><p><b>還沒有穿香紀錄</b></p><p>${canAdd ? "在收藏清單按「今天噴」就會記下今天，或按上面的「＋ 記錄」補記。" : "先到「收藏」新增香水，之後就能記錄每天噴了什麼。"}</p></div>`;
+function wearCard(w, items, months, noDate){
+  const it = items.get(w.itemId);
+  const chips = [`<span class="flag info">${label(SEASONS, seasonOf(w.date, months))}</span>`,
+    w.occasion ? `<span class="tier">${esc(label(OCCASIONS, w.occasion))}</span>` : "",
+    w.sprays != null ? `<span class="count">${w.sprays} 下</span>` : "",
+    w.hours != null ? `<span class="count">持香 ${fmtNum(w.hours)} 小時</span>` : ""].join("");
+  return `<button type="button" class="wcard" data-act="wear-edit" data-id="${esc(w.id)}">${noDate ? "" : `<span class="wdate">${esc(dateLabel(w.date))}</span>`}${thumbHTML(it)}<span class="pbody">` +
+    `<span class="pbrand">${esc(it ? it.brand : "")}</span><span class="pname">${esc(it ? it.name : "（找不到這款香水）")}</span><span class="pmeta">${chips}</span>` +
+    (w.memo ? `<span class="wmemo">${esc(w.memo)}</span>` : "") + `</span></button>`;
+}
+function renderLogList(items, months){
   const all = sortWears(S.wears), list = all.slice(0, UI.logLimit);
   let out = "", cur = "";
   list.forEach(w => {
     const ym = w.date.slice(0, 7);
     if(ym !== cur){ if(cur) out += `</div>`; cur = ym; out += `<div class="sec-title mt">${Number(ym.slice(0, 4))} 年 ${Number(ym.slice(5, 7))} 月</div><div class="wlist">`; }
-    const it = items.get(w.itemId);
-    const chips = [`<span class="flag info">${label(SEASONS, seasonOf(w.date, months))}</span>`,
-      w.occasion ? `<span class="tier">${esc(label(OCCASIONS, w.occasion))}</span>` : "",
-      w.sprays != null ? `<span class="count">${w.sprays} 下</span>` : "",
-      w.hours != null ? `<span class="count">持香 ${fmtNum(w.hours)} 小時</span>` : ""].join("");
-    out += `<button type="button" class="wcard" data-act="wear-edit" data-id="${esc(w.id)}"><span class="wdate">${esc(dateLabel(w.date))}</span>${thumbHTML(it)}<span class="pbody">` +
-      `<span class="pbrand">${esc(it ? it.brand : "")}</span><span class="pname">${esc(it ? it.name : "（找不到這款香水）")}</span><span class="pmeta">${chips}</span>` +
-      (w.memo ? `<span class="wmemo">${esc(w.memo)}</span>` : "") + `</span></button>`;
+    out += wearCard(w, items, months);
   });
   if(cur) out += `</div>`;
   const more = all.length > list.length ? `<div class="mt" style="text-align:center"><button class="btn" type="button" data-act="log-more">顯示更早的紀錄（還有 ${all.length - list.length} 筆）</button></div>` : "";
-  return renderNotices() + head + out + more;
+  return out + more;
+}
+function shiftMonth(ym, n){ const d = new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1 + n, 1); return d.getFullYear() + "-" + pad(d.getMonth() + 1); }
+function groupDot(g, small){ return `<span class="cdot ${g[0]}${small ? " sm" : ""}" aria-hidden="true">${g[2]}</span>`; }
+function calLegend(){ return `<div class="legend">${FAM_GROUPS.concat([GROUP_NONE]).map(g => `<span>${groupDot(g)} ${esc(g[1])}</span>`).join("")}</div>`; }
+function renderCalendar(items, months){
+  const today = todayStr(), ym = /^\d{4}-\d{2}$/.test(UI.calMonth) ? UI.calMonth : today.slice(0, 7);
+  const y = Number(ym.slice(0, 4)), m = Number(ym.slice(5, 7));
+  const days = new Date(y, m, 0).getDate(), lead = new Date(y, m - 1, 1).getDay();
+  const byDate = new Map();
+  S.wears.forEach(w => { if(w.date.slice(0, 7) === ym && (!UI.calItem || w.itemId === UI.calItem)){ const a = byDate.get(w.date); if(a) a.push(w); else byDate.set(w.date, [w]); } });
+  byDate.forEach(a => a.sort((p, q) => p.created - q.created));
+  const sel = UI.calDay && UI.calDay.slice(0, 7) === ym ? UI.calDay : (today.slice(0, 7) === ym ? today : "");
+  let cells = WEEK.split("").map(c => `<div class="calh" aria-hidden="true">${c}</div>`).join("");
+  for(let i = 0; i < lead; i++) cells += `<div class="cpad"></div>`;
+  for(let d = 1; d <= days; d++){
+    const date = `${ym}-${pad(d)}`, ws = byDate.get(date) || [];
+    const names = ws.map(w => { const it = items.get(w.itemId); return it ? it.name : ""; }).filter(Boolean).join("、");
+    const dots = ws.slice(0, 2).map(w => groupDot(groupOf(items.get(w.itemId)))).join("") + (ws.length > 2 ? `<span class="cmore">+${ws.length - 2}</span>` : "");
+    cells += `<button type="button" class="cday${date === today ? " today" : ""}${date > today ? " future" : ""}" data-act="cal-day" data-v="${date}" aria-pressed="${date === sel}" aria-label="${m} 月 ${d} 日：${esc(names || "沒有紀錄")}"><span class="dn">${d}</span><span class="cdots">${dots}</span></button>`;
+  }
+  const total = [...byDate.values()].reduce((n, a) => n + a.length, 0), cnt = new Map();
+  byDate.forEach(a => a.forEach(w => cnt.set(w.itemId, (cnt.get(w.itemId) || 0) + 1)));
+  const topId = [...cnt.entries()].sort((a, b) => b[1] - a[1])[0];
+  const topIt = topId ? items.get(topId[0]) : null;
+  const sum = total ? `本月噴了 ${byDate.size} 天、共 ${total} 次${topIt && !UI.calItem ? `；最常噴：${esc(topIt.name)}（${topId[1]} 次）` : ""}` : (UI.calItem ? "這瓶本月還沒噴過" : "本月還沒有紀錄");
+  const opts = sortItems(S.items.filter(x => x.status === "own" || x.status === "decant" || S.wears.some(w => w.itemId === x.id)), "name");
+  const pickSel = `<div class="field"><label for="cal-item">只看某瓶</label><select id="cal-item"><option value="">全部香水</option>${opts.map(x => `<option value="${esc(x.id)}"${UI.calItem === x.id ? " selected" : ""}>${esc(x.brand + " " + x.name)}</option>`).join("")}</select></div>`;
+  const nav = `<div class="calnav"><button class="btn" type="button" data-act="cal-prev" aria-label="上個月">‹</button><b class="calt">${y} 年 ${m} 月</b><button class="btn" type="button" data-act="cal-next" aria-label="下個月">›</button>${ym !== today.slice(0, 7) ? `<button class="linkbtn" type="button" data-act="cal-today">回到本月</button>` : ""}</div>`;
+  let detail = "";
+  if(sel){
+    const all = S.wears.filter(w => w.date === sel).sort((p, q) => p.created - q.created);
+    detail = `<section class="card stack mt"><div class="toolbar"><h2 style="margin:0">${esc(dateLabel(sel))}</h2>${sel <= today ? `<button class="btn" type="button" data-act="wear-new-day" data-v="${sel}" style="margin-left:auto"${S.items.length ? "" : " disabled"}>${all.length ? "再補一筆" : "補記這天"}</button>` : ""}</div>` +
+      (all.length ? `<div class="wlist">${all.map(w => wearCard(w, items, months, true)).join("")}</div>` : `<p class="hint" style="margin:0">${sel > today ? "這天還沒到。" : "這天沒有紀錄。"}</p>`) + `</section>`;
+  }
+  return `<section class="card stack">${nav}${pickSel}<div class="cal" role="group" aria-label="${y} 年 ${m} 月穿香月曆">${cells}</div><div class="count">${sum}</div>${calLegend()}</section>${detail}`;
+}
+function renderLog(){
+  const items = new Map(S.items.map(x => [x.id, x])), months = S.settings.seasonMonths;
+  const canAdd = S.items.length > 0;
+  const head = `<div class="toolbar listhead"><div class="chips">${chip("log-view", "cal", "月曆", UI.logView !== "list")}${chip("log-view", "list", "清單", UI.logView === "list")}</div><span class="count">${S.wears.length ? `共 ${S.wears.length} 筆` : ""}</span><button class="btn solid" type="button" data-act="wear-new"${canAdd ? "" : " disabled"}>＋ 記錄</button></div>`;
+  if(!S.wears.length && UI.logView === "list") return renderNotices() + head + `<div class="card empty"><p><b>還沒有穿香紀錄</b></p><p>${canAdd ? "在收藏清單按「今天噴」就會記下今天，或按上面的「＋ 記錄」補記。" : "先到「收藏」新增香水，之後就能記錄每天噴了什麼。"}</p></div>`;
+  return renderNotices() + head + (UI.logView === "list" ? renderLogList(items, months) : renderCalendar(items, months));
+}
+function heatData(wears, today, weeks){
+  const end = new Date(today + "T00:00:00"), start = new Date(end);
+  start.setDate(start.getDate() - end.getDay() - (weeks - 1) * 7);
+  const cnt = new Map(); wears.forEach(w => cnt.set(w.date, (cnt.get(w.date) || 0) + 1));
+  const cells = [];
+  let days = 0, total = 0, run = 0, best = 0;
+  for(const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)){
+    const k = ymd(d), n = cnt.get(k) || 0;
+    cells.push({ date: k, n });
+    if(n){ days++; total += n; run++; if(run > best) best = run; } else run = 0;
+  }
+  return { cells, days, total, best, current: run, start: ymd(start) };
+}
+function renderHeat(){
+  const today = todayStr(), h = heatData(S.wears, today, 53);
+  let labels = "", grid = "", lastM = -1;
+  for(let c = 0; c * 7 < h.cells.length; c++){
+    const wk = h.cells.slice(c * 7, c * 7 + 7);
+    const first = wk.find(x => x.date.slice(8) === "01") || (c === 0 ? wk[0] : null);
+    const mm = first ? Number(first.date.slice(5, 7)) : -1;
+    labels += `<span>${first && mm !== lastM ? mm + "月" : ""}</span>`;
+    if(first) lastM = mm;
+  }
+  grid = h.cells.map(x => `<button type="button" class="hc l${Math.min(3, x.n)}" data-act="goto-day" data-v="${x.date}" title="${x.date.slice(5).replace("-", "/")}：${x.n ? x.n + " 次" : "沒噴"}" aria-label="${x.date}：${x.n ? x.n + " 次" : "沒噴"}"></button>`).join("");
+  const sum = h.total ? `近一年噴了 ${h.days} 天、共 ${h.total} 次；最長連續 ${h.best} 天${h.current ? `，目前連續 ${h.current} 天` : ""}` : "近一年還沒有紀錄";
+  return `<section class="card"><h2>全年穿香圖</h2><div class="tbl-wrap heatwrap" id="heatwrap"><div class="heatin"><div class="heatm" aria-hidden="true">${labels}</div><div class="heat" role="group" aria-label="近一年每天穿香次數">${grid}</div></div></div>
+    <div class="legend"><span class="muted">少</span>${[0, 1, 2, 3].map(n => `<span class="hc l${n} key" aria-hidden="true"></span>`).join("")}<span class="muted">多</span><span class="count" style="margin-left:auto">${sum}</span></div>
+    <p class="hint">每格是一天，顏色越深噴越多次（3 次以上最深）；點一下可跳到日誌月曆的那一天。</p></section>`;
 }
 function wSeg(field, list, value, aria){
   const opts = [["", "未填"]].concat(list);
@@ -1095,6 +1203,7 @@ function renderStats(){
   const yMax = Math.max(0, ...st.years.map(y => y.sum));
   const spendB = st.years.length ? bars(st.years.map(y => ({ label: y.year ? y.year + " 年" : "未填日期", n: y.sum, value: `${money(y.sum)}・${y.n} 瓶` })), yMax) + `<p class="hint">加總有填價格、狀態不是「想買」的香水，依購買日期的年份分組。</p>` : `<p class="hint" style="margin:0">在香水的「容量與購買」填上價格和購買日期，這裡就會統計每年花費。</p>`;
   return renderNotices() + `<div class="stack">${filt}${tiles}
+    ${renderHeat()}
     <section class="card"><h2>穿最多次</h2>${topT}</section>
     <div class="grid2 statgrid"><section class="card"><h2>最常穿的香調家族</h2>${famB}</section><section class="card"><h2>最常穿的香材（前 10）</h2>${noteB}</section></div>
     <section class="card"><h2>每年花費</h2>${spendB}</section></div>`;
@@ -1121,6 +1230,7 @@ function render(){
 }
 function afterRender(){
   hydratePhotos();
+  const hw = $("#heatwrap"); if(hw) hw.scrollLeft = hw.scrollWidth;
   if(UI.focus){ const el = $(UI.focus); UI.focus = ""; if(el){ try{ el.focus({ preventScroll: true }); }catch(e){ el.focus(); } } }
 }
 function updateList(){ const el = $("#list"); if(el){ el.innerHTML = renderList(); hydratePhotos(); } }
@@ -1259,15 +1369,16 @@ function removeWear(id, quiet){
   if(quiet) toast("已取消這筆紀錄");
   return w;
 }
-function openWear(id, itemId){
+function openWear(id, itemId, date){
   const w = id ? S.wears.find(x => x.id === id) : null;
   if(id && !w) return;
   hideToast();
   if(UI.view !== "list") closeForm();
   UI.listY = window.scrollY || 0;
   let pre = itemId || "";
+  if(!w && !pre && UI.calItem && S.items.some(x => x.id === UI.calItem)) pre = UI.calItem;
   if(!w && !pre){ const own = S.items.filter(x => x.status === "own" || x.status === "decant"); const recent = sortWears(S.wears)[0]; pre = recent && S.items.some(x => x.id === recent.itemId) ? recent.itemId : (own[0] || S.items[0] || {}).id || ""; }
-  const src = w || normalizeWear({ itemId: pre, date: todayStr() });
+  const src = w || normalizeWear({ itemId: pre, date: isDate(date) ? date : todayStr() });
   UI.wdraft = { ...src, sprays: src.sprays == null ? "" : String(src.sprays), hours: src.hours == null ? "" : String(src.hours) };
   UI.wIsNew = !w; UI.wErr = false; UI.view = "wear";
   UI.snap = draftSig();
@@ -1428,6 +1539,12 @@ function onClick(e){
     case "wear-del": deleteWear(); break;
     case "goto-log": hideToast(); if(UI.view === "list" || confirmLeave()){ closeForm(); UI.tab = "log"; render(); window.scrollTo(0, 0); } break;
     case "log-more": UI.logLimit += 200; render(); break;
+    case "log-view": UI.logView = v; render(); break;
+    case "cal-prev": case "cal-next": UI.calMonth = shiftMonth(UI.calMonth || todayStr().slice(0, 7), act === "cal-prev" ? -1 : 1); UI.calDay = ""; render(); break;
+    case "cal-today": UI.calMonth = ""; UI.calDay = ""; render(); break;
+    case "cal-day": UI.calDay = v; render(); break;
+    case "wear-new-day": if(confirmLeave()) openWear(null, "", v); break;
+    case "goto-day": UI.tab = "log"; UI.logView = "cal"; UI.calMonth = v.slice(0, 7); UI.calDay = v; render(); window.scrollTo(0, 0); break;
     case "stat-period": UI.statPeriod = v; render(); break;
     case "stat-all": UI.statAll = !UI.statAll; render(); break;
     case "pick-season": UI.pickSeason = v; UI.pickOffset = 0; render(); break;
@@ -1477,6 +1594,7 @@ function onInput(e){
 }
 function onChange(e){
   const t = e.target;
+  if(t.id === "cal-item"){ if(UI.calItem === t.value) return; UI.calItem = t.value; render(); return; }
   if(t.id === "sort"){ if(UI.sort === t.value) return; UI.sort = t.value; updateList(); return; }
   if(t.dataset.file === "photo"){ const f = t.files && t.files[0]; t.value = ""; handlePhoto(f); return; }
   if(t.dataset.file === "import"){ const f = t.files && t.files[0]; t.value = ""; handleImportFile(f); return; }

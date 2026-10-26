@@ -69,6 +69,15 @@ const T = suite("store");
       fams: [{ k: "woody", n: 3 }, { k: "leather", n: 3 }, { k: "floral", n: 1 }], notes: [{ t: "皮革", n: 3 }, { t: "檀香", n: 3 }],
       years: [["2026", 1, 6000], ["2025", 1, 900], ["", 1, 1000]], thisYear: 6000, total: 7900, tp: 4200, ta: "專櫃" }, "統計計算（期間、每次成本、家族、香材、每年花費、想買不計）");
   }
+  // --- 月曆與全年圖 ---
+  {
+    const { run } = load();
+    T.eq(run(`[groupOf(normalizeItem({families:["leather","floral"]}))[0], groupOf(normalizeItem({families:["musky"]}))[0], groupOf(normalizeItem({}))[0], groupOf(undefined)[0]]`), ["g2", "g6", "g0", "g0"], "香調家族分組（取第一個家族）");
+    T.eq(run(`FAM_GROUPS.flatMap(g => g[3]).sort()`), run(`keysOf(FAMS).slice().sort()`), "14 類都有分組且不重複");
+    T.eq([run(`shiftMonth("2026-01", -1)`), run(`shiftMonth("2026-12", 1)`), run(`shiftMonth("2026-10", 0)`)], ["2025-12", "2027-01", "2026-10"], "月份加減跨年");
+    const h = run(`(() => { const W = d => normalizeWear({ itemId: "a", date: d }); const h = heatData([W("2026-10-26"), W("2026-10-26"), W("2026-10-25"), W("2026-10-24"), W("2026-10-20"), W("2025-01-01")], "2026-10-26", 53); return { len: h.cells.length, first: h.start, firstDow: new Date(h.start + "T00:00:00").getDay(), last: h.cells[h.cells.length - 1], days: h.days, total: h.total, best: h.best, current: h.current }; })()`);
+    T.eq(h, { len: 52 * 7 + 2, first: "2025-10-26", firstDow: 0, last: { date: "2026-10-26", n: 2 }, days: 4, total: 5, best: 3, current: 3 }, "全年圖：從週日開始、到今天、連續天數");
+  }
   // --- 寫入失敗 ---
   {
     const ls = fakeStorage(); ls.failWrites = true;

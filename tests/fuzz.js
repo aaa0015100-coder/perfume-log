@@ -50,7 +50,7 @@ for(let round = 0; round < 60; round++){
     // 日誌、今天噴什麼、日誌表單
     const wears = Array.from({ length: Math.floor(rnd() * 30) }, () => ({ id: pick([undefined, "w" + Math.floor(rnd() * 5)]), itemId: rnd() < .8 ? "ITEM" : pick(STRS), date: pick(["2026-10-26", "2025-01-01", "bad", undefined, "2026-02-29"]), occasion: pick(["work", "x", undefined]), sprays: VALS(), hours: VALS(), memo: pick(STRS) }));
     run(`S.wears = S.items.length ? ${JSON.stringify(wears)}.map(w => normalizeWear(Object.assign(w, { itemId: w.itemId === "ITEM" ? S.items[Math.floor(Math.random()*S.items.length)].id : w.itemId }))) : []; UI.view = "list"; UI.logLimit = ${pick([1, 5, 100])}; UI.pickOffset = ${Math.floor(rnd() * 10)}; UI.pickSeason = ${JSON.stringify(pick(["", "winter", "summer"]))}; UI.pickTime = ${JSON.stringify(pick(["", "day", "night"]))};`);
-    run(`UI.tab = "log"`); check(run("renderMain()"), "renderLog");
+    run(`UI.tab = "log"; UI.logView = ${JSON.stringify(pick(["cal", "list", "x"]))}; UI.calMonth = ${JSON.stringify(pick(["", "2026-10", "2025-01", "bad", "2026-13"]))}; UI.calDay = ${JSON.stringify(pick(["", "2026-10-26", "2026-10-01", "zzz"]))}; UI.calItem = S.items.length && ${rnd() < .5} ? S.items[0].id : ${JSON.stringify(pick(["", "ghost"]))};`); check(run("renderMain()"), "renderLog");
     run(`UI.tab = "pick"`); check(run("renderMain()"), "renderPick");
     run(`UI.tab = "stats"; UI.statPeriod = ${JSON.stringify(pick(["all","year","90","bad"]))}; UI.statAll = ${rnd() < .5}`); check(run("renderMain()"), "renderStats");
     run(`UI.tab = "coll"; UI.sort = "worn"`); check(run("renderList()"), "renderList（最近穿著）");

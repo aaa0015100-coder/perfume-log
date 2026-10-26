@@ -109,7 +109,11 @@ def overview(browser, url, base, W, scheme, shots, tag):
     check(page, f"{where} 表單")
     if shots and W == 390:
         page.screenshot(path=os.path.join(shots, f"{tag}-form.png"), full_page=True)
-    page.click("[data-act=tab][data-tab=log]")
+    open_log(page, "cal")
+    check(page, f"{where} 日誌月曆")
+    if shots and W in (390, 1280):
+        page.screenshot(path=os.path.join(shots, f"{tag}-cal.png"), full_page=True)
+    page.click("[data-act=log-view][data-v=list]")
     check(page, f"{where} 日誌")
     if shots and W == 390:
         page.screenshot(path=os.path.join(shots, f"{tag}-log.png"))
@@ -281,7 +285,7 @@ def flow(browser, url, base, tmp):
     ok(t < 300, f"500 筆搜尋太慢：{t:.0f} ms")
     ok(page.is_visible("text=還沒有備份過"), "沒備份時沒有提醒")
     check(page, "390 500 筆")
-    page.click("[data-act=tab][data-tab=log]")
+    open_log(page)
     ok(page.locator(".wcard").count() == 100, "日誌沒有分頁顯示 100 筆")
     page.click("[data-act=log-more]")
     ok(page.locator(".wcard").count() == 300, "顯示更早的紀錄沒作用")
@@ -339,7 +343,7 @@ def flow_log(browser, url, base):
     page.click("[data-act=wear][data-id=a]")
     ok(len(items_and_wears(page)["wears"]) == 1, "同一天重複記錄")
     # 補記一筆過去的
-    page.click("[data-act=tab][data-tab=log]")
+    open_log(page)
     page.click("[data-act=wear-new]")
     page.select_option("#w-item", "b")
     page.fill("#w-date", "2026-07-15")
@@ -470,7 +474,7 @@ def flow_options(browser, url, base, W, scheme):
     page.evaluate("() => { window.confirm = () => true; }")
     page.click("[data-act=cancel] >> nth=0")
     # 日誌表單選項
-    page.click("[data-act=tab][data-tab=log]")
+    open_log(page)
     page.click("[data-act=wear-new]")
     for v in ["work", "casual", "date", "party", "formal", "home", "travel", "other", ""]:
         page.click(f".seg input[data-w=occasion][value='{v}'] >> xpath=..")
@@ -506,6 +510,69 @@ def flow_options(browser, url, base, W, scheme):
     ctx.close()
 
 
+def open_log(page, view="list"):
+    page.click("[data-act=tab][data-tab=log]")
+    page.click(f"[data-act=log-view][data-v={view}]")
+
+
+def flow_calendar(browser, url, base, scheme):
+    import datetime
+    ctx = browser.new_context(viewport={"width": 390, "height": 860}, color_scheme=scheme)
+    page = ctx.new_page()
+    errs, reqs = [], []
+    watch(page, errs, reqs, base)
+    page.goto(url)
+    today = datetime.date.today()
+    first = today.replace(day=1)
+    d2 = (first + datetime.timedelta(days=1)).isoformat() if today.day > 2 else first.isoformat()
+    items = [{"id": "w", "brand": "Le Labo", "name": "Santal 33", "status": "own", "families": ["woody"]},
+             {"id": "f", "brand": "Diptyque", "name": "Do Son", "status": "own", "families": ["floral"]},
+             {"id": "n", "brand": "Byredo", "name": "Gypsy", "status": "decant"}]
+    wears = [{"id": "a1", "itemId": "w", "date": today.isoformat(), "created": 1}, {"id": "a2", "itemId": "f", "date": today.isoformat(), "created": 2},
+             {"id": "a3", "itemId": "n", "date": today.isoformat(), "created": 3}, {"id": "a4", "itemId": "f", "date": d2, "created": 4}]
+    page.evaluate("d => localStorage.setItem('perfume-log-data', JSON.stringify({ schema: 2, items: d.items, wears: d.wears, settings: { lastBackup: Date.now() } }))", {"items": items, "wears": wears})
+    page.reload()
+    page.click("[data-act=tab][data-tab=log]")
+    ok(page.locator(".cal").count() == 1, f"{scheme} 日誌預設不是月曆")
+    cell = page.locator(f".cday[data-v='{today.isoformat()}']")
+    ok(cell.locator(".cdot").count() == 2 and cell.locator(".cmore").inner_text() == "+1", f"{scheme} 一天 3 筆應顯示 2 點＋1")
+    ok(cell.locator(".cdot.g2").count() == 1 and cell.locator(".cdot.g5").count() == 1, f"{scheme} 色點分組不對")
+    ok("today" in (cell.get_attribute("class") or ""), f"{scheme} 今天沒標出來")
+    ok(page.locator(".wcard").count() == 3, f"{scheme} 預設沒顯示今天的紀錄")
+    ok(page.is_visible("text=本月噴了"), f"{scheme} 沒有本月摘要")
+    ok(page.locator(".legend .cdot").count() == 7, f"{scheme} 圖例不是 7 項")
+    check(page, f"390 {scheme} 月曆")
+    page.screenshot(path=os.path.join(tempfile.gettempdir(), f"cal-{scheme}.png"))
+    # 只看某瓶
+    page.select_option("#cal-item", "f")
+    ok(cell.locator(".cdot").count() == 1 and page.locator(f".cday[data-v='{d2}'] .cdot").count() == 1, f"{scheme} 只看某瓶沒過濾")
+    page.select_option("#cal-item", "")
+    # 切月份、回本月、點空白日補記
+    page.click("[data-act=cal-prev]")
+    ok(page.is_visible("[data-act=cal-today]"), f"{scheme} 切到上個月沒有「回到本月」")
+    page.click(".cday >> nth=9")
+    page.click("[data-act=wear-new-day]")
+    dv = page.input_value("#w-date")
+    ok(dv.endswith("-10") and dv < today.isoformat(), f"{scheme} 補記這天沒帶入日期：{dv}")
+    page.click("[data-act=wear-save]")
+    ok(page.locator(".wcard").count() == 1, f"{scheme} 補記後沒出現在當天")
+    page.click("[data-act=cal-today]")
+    ok(page.is_visible(f"text={today.year} 年 {today.month} 月"), f"{scheme} 回到本月失敗")
+    # 全年圖
+    page.click("[data-act=tab][data-tab=stats]")
+    ok(page.locator(".heat .hc").count() >= 365, f"{scheme} 全年圖格數不對")
+    ok(page.locator(f".hc.l3[data-v='{today.isoformat()}']").count() == 1, f"{scheme} 今天 3 次應是最深色")
+    sl = page.evaluate("() => { const h = document.getElementById('heatwrap'); return [h.scrollLeft, h.scrollWidth - h.clientWidth]; }")
+    ok(sl[1] <= 0 or sl[0] >= sl[1] - 2, f"{scheme} 全年圖沒捲到最新 {sl}")
+    check(page, f"390 {scheme} 統計（全年圖）")
+    page.screenshot(path=os.path.join(tempfile.gettempdir(), f"heat-{scheme}.png"), full_page=True)
+    page.click(f".hc[data-v='{d2}']")
+    ok(page.locator(".cal").count() == 1 and page.get_attribute(f".cday[data-v='{d2}']", "aria-pressed") == "true", f"{scheme} 點全年圖沒跳到月曆那天")
+    ok(not errs, f"{scheme} 月曆流程：console 錯誤 {errs[:3]}")
+    ok(not reqs, f"{scheme} 月曆流程：有外部網路請求 {reqs[:3]}")
+    ctx.close()
+
+
 def items_and_wears(page):
     return page.evaluate("() => JSON.parse(localStorage.getItem('perfume-log-data'))")
 
@@ -533,6 +600,8 @@ def main():
                 overview(b, url, base, 1280, "light", a.shots, "1280-light")
             flow(b, url, base, tmp)
             flow_log(b, url, base)
+            flow_calendar(b, url, base, "light")
+            flow_calendar(b, url, base, "dark")
             if widths:
                 for W in widths:
                     for sc in ["light", "dark"]:

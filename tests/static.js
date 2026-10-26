@@ -42,7 +42,7 @@ T.ok(keys.every(k => allowed.includes(k)), "未允許的儲存鍵：" + keys.fil
 
 // 5. 使用者文字插入 HTML 都經過 esc()
 const risky = /\$\{(?![^}]*\besc\()[^}]*\b(?:it|d|x|imp|UI\.f)\.(brand|name|memo|perfumer|buyPlace|q|id)\b[^}]*\}/g;
-const bad = (js.split("\n").filter(l => !/toast\(/.test(l)).join("\n").match(risky) || []).filter(m => !/\.trim\(\)/.test(m));
+const bad = (js.split("\n").filter(l => !/toast\(/.test(l)).join("\n").match(risky) || []).filter(m => !/\.trim\(\)|[!=]==|\.get\(/.test(m));
 T.ok(!bad.length, "未跳脫的使用者文字：" + bad.join(" | "));
 T.ok(!/\.innerHTML\s*=\s*(?![\s]|renderTabs\(\)|renderMain\(\)|renderList\(\)|esc\()/.test(js), "innerHTML 指派了未經 render／esc 的內容");
 

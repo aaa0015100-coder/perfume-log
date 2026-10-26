@@ -58,6 +58,18 @@ def seed_items(n):
     return out
 
 
+def seed_wears(n):
+    import datetime
+    out = []
+    today = datetime.date.today()
+    for i in range(n * 3):
+        d = today - datetime.timedelta(days=i * 2)
+        out.append({"id": f"w-{i}", "itemId": f"seed-{(i * 7) % n}", "date": d.isoformat(), "occasion": ["work", "date", "", "home"][i % 4],
+                    "sprays": (i % 5) + 1 if i % 3 else None, "hours": 6.5 if i % 2 else None, "memo": "下雨天，乾燥後段很舒服 <i>x</i>" if i % 4 == 0 else "",
+                    "created": 1700000000000 + i, "updated": 1700000000000 + i})
+    return out
+
+
 def make_png(path):
     try:
         from PIL import Image
@@ -84,7 +96,7 @@ def overview(browser, url, base, W, scheme, shots, tag):
     errs, reqs = [], []
     watch(page, errs, reqs, base)
     page.goto(url)
-    page.evaluate("d => localStorage.setItem('perfume-log-data', JSON.stringify({ schema: 1, items: d, settings: { lastBackup: 0 } }))", seed_items(24))
+    page.evaluate("d => localStorage.setItem('perfume-log-data', JSON.stringify({ schema: 2, items: d.items, wears: d.wears, settings: { lastBackup: 0 } }))", {"items": seed_items(24), "wears": seed_wears(24)})
     page.reload()
     where = f"{W}px {scheme}"
     check(page, f"{where} 收藏")
@@ -97,6 +109,16 @@ def overview(browser, url, base, W, scheme, shots, tag):
     check(page, f"{where} 表單")
     if shots and W == 390:
         page.screenshot(path=os.path.join(shots, f"{tag}-form.png"), full_page=True)
+    page.click("[data-act=tab][data-tab=log]")
+    check(page, f"{where} 日誌")
+    if shots and W == 390:
+        page.screenshot(path=os.path.join(shots, f"{tag}-log.png"))
+    page.click("[data-act=wear-edit] >> nth=0")
+    check(page, f"{where} 日誌表單")
+    page.click("[data-act=tab][data-tab=pick]")
+    check(page, f"{where} 今天噴什麼")
+    if shots and W == 390:
+        page.screenshot(path=os.path.join(shots, f"{tag}-pick.png"))
     page.click("[data-act=tab][data-tab=settings]")
     check(page, f"{where} 設定")
     if shots and W == 390 and scheme == "light":
@@ -171,7 +193,7 @@ def flow(browser, url, base, tmp):
     ok(page.locator(".pcard").count() == 1, "清除篩選後沒恢復")
 
     # 編輯
-    page.click(".pcard")
+    page.click(".pmain")
     page.fill("#f-name", "Santal 33 <b>")
     page.click("[data-act=save]")
     page.reload()
@@ -230,14 +252,14 @@ def flow(browser, url, base, tmp):
 
     # 刪除 → 復原 → 再刪除 → 照片也清掉
     page.click("[data-act=tab][data-tab=coll]")
-    page.click(".pcard")
+    page.click(".pmain")
     page.click("[data-act=del]")
     ok(page.locator(".pcard").count() == 0, "刪除後還在")
     page.click("#toast [data-act=undo]")
     ok(page.locator(".pcard").count() == 1, "復原失敗")
     page.reload()
     ok(len(items_of(page)) == 1, "復原後重新整理不見")
-    page.click(".pcard")
+    page.click(".pmain")
     page.click("[data-act=del]")
     page.wait_for_timeout(6200)
     page.reload()
@@ -245,16 +267,126 @@ def flow(browser, url, base, tmp):
     ok(photo_count(page) == 0, "刪除後照片沒清掉")
 
     # 大量資料
-    page.evaluate("d => localStorage.setItem('perfume-log-data', JSON.stringify({ schema: 1, items: d, settings: { lastBackup: 0 } }))", seed_items(500))
+    page.evaluate("d => localStorage.setItem('perfume-log-data', JSON.stringify({ schema: 2, items: d.items, wears: d.wears, settings: { lastBackup: 0 } }))", {"items": seed_items(500), "wears": seed_wears(500)})
     page.reload()
     t = page.evaluate("() => { const t0 = performance.now(); const q = document.getElementById('q'); q.value = '玫瑰'; q.dispatchEvent(new Event('input', { bubbles: true })); return performance.now() - t0; }")
     ok(t < 300, f"500 筆搜尋太慢：{t:.0f} ms")
     ok(page.is_visible("text=還沒有備份過"), "沒備份時沒有提醒")
     check(page, "390 500 筆")
+    page.click("[data-act=tab][data-tab=log]")
+    ok(page.locator(".wcard").count() == 100, "日誌沒有分頁顯示 100 筆")
+    page.click("[data-act=log-more]")
+    ok(page.locator(".wcard").count() == 300, "顯示更早的紀錄沒作用")
+    page.click("[data-act=tab][data-tab=pick]")
+    page.click("[data-act=pick-season][data-v=winter]")
+    ok(page.locator(".pcard").count() == 3, "500 筆時今天噴什麼不是 3 個候選")
+    first = page.locator(".pname").first.inner_text()
+    page.click("[data-act=pick-more]")
+    ok(page.locator(".pname").first.inner_text() != first, "換一批沒換")
 
     ok(not errs, f"操作流程：console 錯誤 {errs[:3]}")
     ok(not reqs, f"操作流程：有外部網路請求 {reqs[:3]}")
     ctx.close()
+
+
+def flow_log(browser, url, base):
+    ctx = browser.new_context(viewport={"width": 390, "height": 860})
+    page = ctx.new_page()
+    errs, reqs = [], []
+    watch(page, errs, reqs, base)
+    dialogs = []
+    page.on("dialog", lambda d: (dialogs.append(d.message), d.dismiss()))
+    page.goto(url)
+    # 舊版（schema 1）資料要能升級
+    v1 = {"schema": 1, "items": [{"id": "a", "brand": "Le Labo", "name": "Santal 33", "status": "own", "seasons": ["autumn", "winter", "spring", "summer"], "created": 3, "updated": 3},
+                                 {"id": "b", "brand": "Byredo", "name": "Gypsy Water", "status": "decant", "created": 2, "updated": 2},
+                                 {"id": "c", "brand": "Chanel", "name": "No.5", "status": "want", "created": 1, "updated": 1}], "settings": {"lastBackup": 1}}
+    page.evaluate("d => localStorage.setItem('perfume-log-data', JSON.stringify(d))", v1)
+    page.reload()
+    ok(page.locator(".pcard").count() == 3, "v1 資料升級後清單不對")
+    ok(page.locator("[data-act=wear]").count() == 2, "「今天噴」只該出現在擁有／分裝")
+    ok(page.is_visible("text=上次噴：還沒噴過"), "沒顯示還沒噴過")
+    # 一鍵今天噴 → 復原 → 再噴 → 補充細節
+    page.click("[data-act=wear][data-id=a]")
+    ok(page.is_visible("#toast >> text=已記錄：今天噴 Santal 33"), "今天噴沒有提示")
+    ok(page.is_visible("[data-act=wear][data-id=a]:has-text('✓ 今天')"), "今天噴後按鈕沒變")
+    page.click("#toast [data-act=undo]")
+    d = items_and_wears(page)
+    ok(len(d["wears"]) == 0, "今天噴復原失敗")
+    page.click("[data-act=wear][data-id=a]")
+    page.click("#toast [data-act=wear-edit]")
+    ok(page.is_visible("text=編輯穿香紀錄"), "補充細節沒打開日誌表單")
+    page.click(".seg label:has-text('約會')")
+    page.fill("#w-sprays", "3")
+    page.fill("#w-hours", "6.5")
+    page.fill("#w-memo", "雨天 <b>很好</b>")
+    page.click("[data-act=wear-save]")
+    ok(page.locator(".wcard").count() == 1, "日誌清單沒有 1 筆")
+    ok(page.is_visible(".wcard >> text=約會") and page.is_visible(".wcard >> text=3 下") and page.is_visible(".wcard >> text=持香 6.5 小時"), "日誌卡片內容不對")
+    ok(page.locator(".wcard b").count() == 0, "心得沒有跳脫")
+    w = items_and_wears(page)["wears"][0]
+    ok(w["occasion"] == "date" and w["sprays"] == 3 and w["hours"] == 6.5, f"日誌存檔不對 {w}")
+    # 再按一次今天噴：不重複
+    page.click("[data-act=tab][data-tab=coll]")
+    page.click("[data-act=wear][data-id=a]")
+    ok(len(items_and_wears(page)["wears"]) == 1, "同一天重複記錄")
+    # 補記一筆過去的
+    page.click("[data-act=tab][data-tab=log]")
+    page.click("[data-act=wear-new]")
+    page.select_option("#w-item", "b")
+    page.fill("#w-date", "2026-07-15")
+    ok(page.is_visible("text=夏（依日期自動判斷）"), "日期改了季節沒更新")
+    page.click("[data-act=wear-save]")
+    ok(page.locator(".wcard").count() == 2 and page.is_visible("text=2026 年 7 月"), "補記沒出現在對應月份")
+    # 離開未儲存的表單要確認
+    page.click(".wcard >> nth=0")
+    page.fill("#w-memo", "改了沒存")
+    page.click("[data-act=tab][data-tab=coll]")
+    ok(len(dialogs) == 1 and page.is_visible("text=編輯穿香紀錄"), "未儲存離開沒有確認（或取消後仍離開）")
+    page.click("[data-act=cancel] >> nth=0")
+    ok(len(dialogs) == 2, "按返回沒有確認")
+    # 刪除日誌 → 復原
+    page.evaluate("() => { window.confirm = () => true; }")
+    page.click("[data-act=cancel] >> nth=0")
+    page.click(".wcard >> nth=0")
+    page.click("[data-act=wear-del]")
+    ok(page.locator(".wcard").count() == 1, "刪除日誌後數量不對")
+    page.click("#toast [data-act=undo]")
+    ok(page.locator(".wcard").count() == 2, "刪除日誌復原失敗")
+    # 刪除香水 → 日誌一起刪 → 復原一起回來
+    page.click("[data-act=tab][data-tab=coll]")
+    page.click(".pmain >> nth=0")
+    page.click("[data-act=del]")
+    ok(page.is_visible("#toast >> text=含 1 筆日誌"), "刪除香水沒提示日誌")
+    ok(len(items_and_wears(page)["wears"]) == 1, "刪除香水沒刪掉它的日誌")
+    page.click("#toast [data-act=undo]")
+    ok(len(items_and_wears(page)["wears"]) == 2, "復原香水沒帶回日誌")
+    # 最近穿著排序
+    page.select_option("#sort", "worn")
+    names = page.locator(".pname").all_inner_texts()
+    ok(names[:2] == ["Santal 33", "Gypsy Water"], f"最近穿著排序不對 {names}")
+    # 今天噴什麼
+    page.click("[data-act=tab][data-tab=pick]")
+    ok(page.locator(".pcard").count() == 2, "今天噴什麼候選數不對")
+    ok(page.locator(".pname").first.inner_text() == "Gypsy Water", "今天噴過的沒排到後面")
+    page.click("[data-act=pick-season][data-v=summer]")
+    ok(page.get_attribute("[data-act=pick-season][data-v=summer]", "aria-pressed") == "true", "季節切換沒作用")
+    page.click("[data-act=wear][data-id=b]")
+    ok(page.is_visible("[data-act=wear][data-id=b]:has-text('✓ 今天')"), "就噴這瓶沒記錄")
+    # 季節月份設定
+    page.click("[data-act=tab][data-tab=settings]")
+    page.select_option("#m-8", "summer")
+    ok(items_and_wears(page)["settings"]["seasonMonths"][8] == "summer", "季節月份沒存")
+    page.click("[data-act=months-reset]")
+    ok(items_and_wears(page)["settings"]["seasonMonths"][8] == "autumn", "季節月份恢復預設失敗")
+    check(page, "390 設定（季節）")
+    ok(not errs, f"日誌流程：console 錯誤 {errs[:3]}")
+    ok(not reqs, f"日誌流程：有外部網路請求 {reqs[:3]}")
+    ctx.close()
+
+
+def items_and_wears(page):
+    return page.evaluate("() => JSON.parse(localStorage.getItem('perfume-log-data'))")
 
 
 def main():
@@ -279,6 +411,7 @@ def main():
                 overview(b, url, base, 390, "dark", a.shots, "390-dark")
                 overview(b, url, base, 1280, "light", a.shots, "1280-light")
             flow(b, url, base, tmp)
+            flow_log(b, url, base)
         except Exception as e:
             fails.append(f"例外：{type(e).__name__}: {str(e)[:400]}")
         finally:

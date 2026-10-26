@@ -224,7 +224,20 @@ table.grid td.hl{background:var(--accent-weak)}
 .empty b{color:var(--ink)}
 .plist{display:grid;gap:10px;padding-bottom:64px}
 @media (min-width:640px){.plist{grid-template-columns:repeat(auto-fill,minmax(290px,1fr))}}
-.pcard{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;cursor:pointer;min-width:0}
+.pcard{display:flex;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;min-width:0}
+.pmain{display:flex;gap:12px;align-items:flex-start;flex:1;min-width:0;background:none;border:0;padding:0;text-align:left;cursor:pointer;color:inherit}
+.wearbtn{flex:0 0 auto;padding:6px 10px;font-size:.8rem;white-space:nowrap}
+.wearbtn.done{border-color:var(--line);color:var(--muted);background:var(--surface2)}
+.wlist{display:grid;gap:8px;margin-top:6px}
+.wcard{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;cursor:pointer;min-width:0;color:inherit}
+.wdate{flex:0 0 66px;font-family:var(--f-mono);font-size:.8rem;font-weight:600;color:var(--accent);padding-top:2px}
+.thumb.sm,.wcard .thumb{flex-basis:44px;width:44px;height:44px}
+.wcard .thumb svg{width:22px;height:22px}
+.wmemo{font-size:.84rem;margin-top:4px;overflow-wrap:anywhere;white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.months{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
+.pickhead{font-size:1rem}
+.wseason{font-size:.92rem;padding:8px 0}
+.field select.err{border-color:var(--danger)}
 .pcard.gone{opacity:.68}
 .thumb{flex:0 0 64px;width:64px;height:64px;border-radius:8px;background:var(--surface2);border:1px solid var(--line);display:grid;place-items:center;color:var(--muted);overflow:hidden}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
@@ -272,9 +285,9 @@ pre.tpl{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--surface2);b
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <script>
-const APP_VERSION = "0.1";
+const APP_VERSION = "0.2";
 const UPDATED = "2026-10-26";
-const SCHEMA = 1;
+const SCHEMA = 2;
 
 /* ===== 選項 ===== */
 const STATUS = [["own","擁有"],["decant","分裝／小樣"],["tried","試過"],["want","想買"],["gone","已送出／用完"]];
@@ -285,11 +298,15 @@ const TIMES = [["day","白天"],["night","晚上"]];
 const LEVELS = [["full","滿"],["70","七成"],["50","一半"],["30","三成"],["low","快用完"]];
 const STRENGTH = [["weak","弱"],["mid","中"],["strong","強"]];
 const LAYERS = [["top","前調"],["mid","中調"],["base","後調"]];
-const SORTS = [["new","最近新增"],["rating","評分"],["buy","購買日期"],["name","名稱"]];
+const SORTS = [["new","最近新增"],["worn","最近穿著"],["rating","評分"],["buy","購買日期"],["name","名稱"]];
+const OCCASIONS = [["work","上班／上學"],["casual","休閒"],["date","約會"],["party","聚會"],["formal","正式場合"],["home","在家"],["travel","旅行"],["other","其他"]];
+const DEFAULT_MONTHS = ["winter","winter","spring","spring","spring","summer","summer","summer","autumn","autumn","autumn","winter"];
+const WEEK = "日一二三四五六";
 const label = (list, v) => { const f = list.find(x => x[0] === v); return f ? f[1] : ""; };
 const keysOf = list => list.map(x => x[0]);
 
 const CHANGELOG = [
+  ["0.2", "2026-10-26", "穿香日誌（收藏卡片一鍵「今天噴」、日誌分頁可補場合／噴幾下／持香／心得）、今天噴什麼（依季節與時段挑久沒噴的）、季節月份設定、最近穿著排序、離開未儲存的表單前先確認。"],
   ["0.1", "2026-10-26", "第一版：收藏清單、新增／編輯／刪除（可復原）、照片、搜尋篩選排序、貼上自動填入、匯出匯入備份、主題切換。"]
 ];
 
@@ -380,16 +397,50 @@ function normalizeItem(raw){
   if(it.updated < it.created) it.updated = it.created;
   return it;
 }
-function freshData(){ return { schema: SCHEMA, items: [], settings: { lastBackup: 0 } }; }
+function todayStr(){ return ymd(new Date()); }
+function normalizeWear(raw){
+  const r = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const now = Date.now();
+  const w = {
+    id: typeof r.id === "string" && r.id && r.id.length <= 64 ? r.id : uid(),
+    itemId: typeof r.itemId === "string" ? r.itemId.slice(0, 64) : "",
+    date: isDate(r.date) ? r.date : todayStr(),
+    occasion: pick(r.occasion, OCCASIONS),
+    sprays: num(r.sprays, 1, 99, true),
+    hours: num(r.hours, 0, 72),
+    memo: str(r.memo, 1000),
+    created: num(r.created, 1, 9e15, true) || now,
+    updated: num(r.updated, 1, 9e15, true) || now
+  };
+  if(w.updated < w.created) w.updated = w.created;
+  return w;
+}
+function normalizeMonths(m){ return Array.isArray(m) && m.length === 12 && m.every(x => keysOf(SEASONS).includes(x)) ? m.slice() : DEFAULT_MONTHS.slice(); }
+function normalizeSettings(s){
+  s = s && typeof s === "object" && !Array.isArray(s) ? s : {};
+  return { lastBackup: num(s.lastBackup, 0, 9e15, true) || 0, seasonMonths: normalizeMonths(s.seasonMonths) };
+}
+function freshData(){ return { schema: SCHEMA, items: [], wears: [], settings: normalizeSettings({}) }; }
 function migrate(d){
   if(!d || typeof d !== "object" || Array.isArray(d)) throw new Error("bad data");
   const schema = typeof d.schema === "number" ? d.schema : 1;
   if(schema > SCHEMA) return { newer: true };
-  // schema 1 是第一版；之後改結構時在這裡逐版升級
-  const items = Array.isArray(d.items) ? d.items.filter(x => x && typeof x === "object").map(normalizeItem) : [];
-  const s = d.settings && typeof d.settings === "object" ? d.settings : {};
-  return { data: { schema: SCHEMA, items, settings: { lastBackup: num(s.lastBackup, 0, 9e15, true) || 0 } } };
+  const items = Array.isArray(d.items) ? d.items.filter(x => x && typeof x === "object" && !Array.isArray(x)).map(normalizeItem) : [];
+  // schema 1 → 2：新增 wears（穿香日誌）與 settings.seasonMonths
+  const ids = new Set(items.map(x => x.id));
+  const wears = schema >= 2 && Array.isArray(d.wears) ? d.wears.filter(x => x && typeof x === "object" && !Array.isArray(x)).map(normalizeWear).filter(w => ids.has(w.itemId)) : [];
+  return { data: { schema: SCHEMA, items, wears, settings: normalizeSettings(d.settings) } };
 }
+function seasonOf(date, months){ const m = parseInt(String(date).slice(5, 7), 10); return (months || DEFAULT_MONTHS)[(m >= 1 && m <= 12 ? m : 1) - 1]; }
+function wearIndex(wears){
+  const m = new Map();
+  wears.forEach(w => { const e = m.get(w.itemId); if(e){ e.count++; if(w.date > e.last) e.last = w.date; } else m.set(w.itemId, { count: 1, last: w.date }); });
+  return m;
+}
+function daysBetween(a, b){ return Math.round((new Date(b + "T00:00:00") - new Date(a + "T00:00:00")) / 86400000); }
+function agoText(date, today){ if(!date) return "還沒噴過"; const d = daysBetween(date, today); return d <= 0 ? "今天" : d === 1 ? "昨天" : d + " 天前"; }
+function dateLabel(date){ const d = new Date(date + "T00:00:00"); return `${d.getMonth() + 1}/${d.getDate()}（${WEEK[d.getDay()]}）`; }
+function sortWears(wears){ return wears.slice().sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0) || (b.created - a.created)); }
 function allNotes(it){ return [...it.notes.top, ...it.notes.mid, ...it.notes.base, ...it.notes.all]; }
 
 /* ===== 儲存（所有瀏覽器儲存的讀寫只在這裡） ===== */
@@ -445,7 +496,7 @@ const store = {
   delPhoto(id){ return this._tx("readwrite", s => s.delete(id)); },
   photoKeys(){ return this._tx("readonly", s => s.getAllKeys()); },
   async exportAll(data, withPhotos){
-    const out = { app: "perfume-log", schema: SCHEMA, version: APP_VERSION, exported: new Date().toISOString(), items: data.items, settings: data.settings };
+    const out = { app: "perfume-log", schema: SCHEMA, version: APP_VERSION, exported: new Date().toISOString(), items: data.items, wears: data.wears, settings: data.settings };
     let missing = 0;
     if(withPhotos){
       out.photos = {};
@@ -496,7 +547,12 @@ function validateImport(text){
   const photos = {};
   items.forEach(it => { const p = ph[it.id]; if(typeof p === "string" && /^data:image\/(jpeg|png|webp|gif);base64,/.test(p)) photos[it.id] = p; });
   const ex = o && !Array.isArray(o) && typeof o.exported === "string" && !isNaN(Date.parse(o.exported)) ? ymd(new Date(o.exported)) : "";
-  return { items, photos, photoCount: Object.keys(photos).length, skipped, exported: ex };
+  const ids = new Set(items.map(x => x.id)), wseen = new Set();
+  const wears = (o && !Array.isArray(o) && Array.isArray(o.wears) ? o.wears : [])
+    .filter(w => w && typeof w === "object" && !Array.isArray(w)).map(normalizeWear)
+    .filter(w => ids.has(w.itemId) && !wseen.has(w.id) && wseen.add(w.id));
+  const settings = o && !Array.isArray(o) && o.settings && typeof o.settings === "object" ? normalizeSettings(o.settings) : null;
+  return { items, wears, settings, photos, photoCount: Object.keys(photos).length, skipped, exported: ex };
 }
 function itemKey(x){ return norm(x.brand).trim() + "\u0001" + norm(x.name).trim(); }
 function cloneItem(x){ const c = { ...x, families: x.families.slice(), seasons: x.seasons.slice(), times: x.times.slice(), notes: { top: x.notes.top.slice(), mid: x.notes.mid.slice(), base: x.notes.base.slice(), all: x.notes.all.slice() } }; delete c._new; return c; }
@@ -515,6 +571,17 @@ function mergeItems(cur, inc){
   return { items: out, added, updated, same, dup, written };
 }
 
+function mergeWears(cur, inc, validIds){
+  const out = cur.filter(w => validIds.has(w.itemId)), idx = new Map(out.map((w, i) => [w.id, i]));
+  let added = 0;
+  inc.forEach(w => {
+    if(!validIds.has(w.itemId)) return;
+    if(idx.has(w.id)){ const i = idx.get(w.id); if(w.updated > out[i].updated) out[i] = { ...w }; }
+    else { idx.set(w.id, out.length); out.push({ ...w }); added++; }
+  });
+  return { wears: out, added };
+}
+
 /* ===== 篩選與排序（純函式） ===== */
 function matchQ(it, q){
   const words = norm(q).split(/\s+/).filter(Boolean);
@@ -531,9 +598,10 @@ function filterItems(items, f){
 }
 const COLLATOR = typeof Intl !== "undefined" ? new Intl.Collator("zh-Hant", { numeric: true, sensitivity: "base" }) : null;
 function cmpStr(a, b){ return COLLATOR ? COLLATOR.compare(a, b) : (a < b ? -1 : a > b ? 1 : 0); }
-function sortItems(items, by){
+function sortItems(items, by, wi){
   const a = items.slice(), byNew = (x, y) => (y.created - x.created) || cmpStr(x.name, y.name);
-  if(by === "rating") a.sort((x, y) => (y.rating - x.rating) || byNew(x, y));
+  if(by === "worn"){ const L = x => ((wi && wi.get(x.id)) || {}).last || ""; a.sort((x, y) => (L(x) < L(y) ? 1 : L(x) > L(y) ? -1 : 0) || byNew(x, y)); }
+  else if(by === "rating") a.sort((x, y) => (y.rating - x.rating) || byNew(x, y));
   else if(by === "buy") a.sort((x, y) => {
     if(x.buyDate && y.buyDate) return (x.buyDate < y.buyDate ? 1 : x.buyDate > y.buyDate ? -1 : 0) || byNew(x, y);
     if(x.buyDate) return -1; if(y.buyDate) return 1; return byNew(x, y);
@@ -546,6 +614,18 @@ function noteSuggestions(items){
   const m = new Map();
   items.forEach(it => allNotes(it).forEach(t => { const k = norm(t); const e = m.get(k); if(e) e.n++; else m.set(k, { t, n: 1 }); }));
   return [...m.values()].sort((a, b) => b.n - a.n || cmpStr(a.t, b.t)).slice(0, 300).map(x => x.t);
+}
+function pickCandidates(items, wi, season, time, today){
+  const tier = x => x.seasons.includes(season) ? 0 : (x.seasons.length ? -1 : 1);
+  const L = x => ((wi.get(x.id) || {}).last) || "";
+  const list = items.filter(x => (x.status === "own" || x.status === "decant") && tier(x) >= 0);
+  const key = x => [L(x) === today ? 1 : 0, tier(x), x.times.length && !x.times.includes(time) ? 1 : 0];
+  return list.sort((a, b) => {
+    const A = key(a), B = key(b);
+    for(let i = 0; i < 3; i++) if(A[i] !== B[i]) return A[i] - B[i];
+    const la = L(a), lb = L(b);
+    return (la < lb ? -1 : la > lb ? 1 : 0) || cmpStr(a.brand, b.brand) || cmpStr(a.name, b.name);
+  });
 }
 function brandSuggestions(items){
   const m = new Map();
@@ -676,13 +756,17 @@ const UI = {
   open: {}, draft: null, isNew: false, formErr: false, draftURL: "",
   pasteText: "", pasteMsg: null, tagIn: {}, focus: "",
   imp: null, impConfirm: false, expPhotos: true, theme: "auto",
-  loadError: "", readOnly: false, pendingDel: null, listY: 0, busy: false
+  loadError: "", readOnly: false, pendingDel: null, listY: 0, busy: false,
+  wdraft: null, wIsNew: false, wErr: false, snap: "", undoFn: null,
+  logLimit: 100, pickOffset: 0, pickSeason: "", pickTime: "", _wi: null, _wiSrc: null
 };
+function WI(){ if(UI._wiSrc !== S.wears){ UI._wiSrc = S.wears; UI._wi = wearIndex(S.wears); } return UI._wi; }
+function nowTime(){ const h = new Date().getHours(); return h >= 6 && h < 18 ? "day" : "night"; }
 function daysSince(ms, now){ return ms ? Math.max(0, Math.floor(((now || Date.now()) - ms) / 86400000)) : null; }
 
 /* ===== 畫面（純函式：只讀 S／UI，回傳字串） ===== */
 function renderTabs(){
-  return [["coll","收藏"],["settings","設定"]].map(([k, l]) =>
+  return [["coll","收藏"],["log","日誌"],["pick","今天噴什麼"],["settings","設定"]].map(([k, l]) =>
     `<button class="tab" type="button" role="tab" data-act="tab" data-tab="${k}" aria-selected="${UI.tab === k}">${l}</button>`).join("");
 }
 function chip(act, v, text, on, n){
@@ -700,9 +784,18 @@ function renderNotices(noBackup){
   }
   return out.length ? `<div class="notes" style="margin-bottom:14px">${out.join("")}</div>` : "";
 }
-function renderCard(it){
+function wearBtn(it, w, today, text){
+  if(it.status !== "own" && it.status !== "decant") return "";
+  return w && w.last === today
+    ? `<button type="button" class="btn wearbtn done" data-act="wear" data-id="${esc(it.id)}" aria-label="${esc(it.name)} 今天已記錄">✓ 今天</button>`
+    : `<button type="button" class="btn wearbtn" data-act="wear" data-id="${esc(it.id)}" aria-label="今天噴 ${esc(it.name)}">${text || "今天噴"}</button>`;
+}
+function renderCard(it, wi, today){
   const fam = it.families.map(k => label(FAMS, k)).join("・");
-  return `<button type="button" class="pcard${it.status === "gone" ? " gone" : ""}" data-act="edit" data-id="${esc(it.id)}">` +
+  const w = wi ? wi.get(it.id) : null;
+  const worn = it.status === "own" || it.status === "decant" ? `上次噴：${agoText(w && w.last, today)}` : "";
+  const sub = [fam, worn].filter(Boolean).join("　");
+  return `<div class="pcard${it.status === "gone" ? " gone" : ""}"><button type="button" class="pmain" data-act="edit" data-id="${esc(it.id)}">` +
     `<span class="thumb">${it.hasPhoto ? `<img data-photo="${esc(it.id)}" alt="">` : BOTTLE}</span>` +
     `<span class="pbody"><span class="pbrand">${esc(it.brand)}</span><span class="pname">${esc(it.name)}</span>` +
     `<span class="pmeta"><span class="tier${it.status === "own" ? " primary" : ""}">${esc(label(STATUS, it.status))}</span>` +
@@ -710,16 +803,17 @@ function renderCard(it){
     (it.volume != null ? `<span class="count">${fmtNum(it.volume)} mL</span>` : "") +
     (it.level === "low" ? `<span class="flag warn">快用完</span>` : "") +
     (it.rating ? `<span class="stars" aria-label="評分 ${it.rating}／5">${"★".repeat(it.rating)}${"☆".repeat(5 - it.rating)}</span>` : "") +
-    `</span>${fam ? `<span class="pfam">${esc(fam)}</span>` : ""}</span></button>`;
+    `</span>${sub ? `<span class="pfam">${esc(sub)}</span>` : ""}</span></button>${wearBtn(it, w, today)}</div>`;
 }
 function filtersActive(){ const f = UI.f; return f.status !== "all" || f.fams.length || f.seasons.length || !!f.q.trim(); }
 function renderList(){
   if(!S.items.length) return `<div class="card empty"><p><b>還沒有香水</b></p><p>按右下角「＋ 新增」加入第一瓶。</p><p class="hint">也可以先在 Claude 對話裡傳照片或品牌名稱，查好資料後貼進新增表單的「貼上自動填入」。</p></div>`;
-  const list = sortItems(filterItems(S.items, UI.f), UI.sort);
+  const wi = WI(), today = todayStr();
+  const list = sortItems(filterItems(S.items, UI.f), UI.sort, wi);
   const sort = `<label class="sortbox"><span class="lbl">排序</span><select id="sort" aria-label="排序">${SORTS.map(([k, l]) => `<option value="${k}"${UI.sort === k ? " selected" : ""}>${l}</option>`).join("")}</select></label>`;
   const head = `<div class="listhead"><span class="count">${list.length === S.items.length ? `共 ${S.items.length} 款` : `符合 ${list.length} 款／共 ${S.items.length} 款`}</span>${sort}</div>`;
   if(!list.length) return head + `<div class="card empty"><p>沒有符合的香水</p><button class="btn" type="button" data-act="fclear">清除搜尋與篩選</button></div>`;
-  return head + `<div class="plist">${list.map(renderCard).join("")}</div>`;
+  return head + `<div class="plist">${list.map(it => renderCard(it, wi, today)).join("")}</div>`;
 }
 function renderCollection(){
   const f = UI.f, cnt = s => S.items.filter(x => x.status === s).length;
@@ -764,7 +858,7 @@ function renderForm(){
   const buyOpen = UI.open.buy != null ? UI.open.buy : !!(d.volume || d.level || d.buyDate || d.buyPlace || d.price);
   const msg = UI.pasteMsg ? `<div class="note${UI.pasteMsg.t === "ok" ? "" : " " + UI.pasteMsg.t} mt">${esc(UI.pasteMsg.s)}</div>` : "";
   return `<div class="form">
-  <div class="toolbar"><button class="btn" type="button" data-act="cancel">← 返回</button><h2>${UI.isNew ? "新增香水" : "編輯香水"}</h2></div>
+  <div class="toolbar"><button class="btn" type="button" data-act="cancel">← 返回</button><h2>${UI.isNew ? "新增香水" : "編輯香水"}</h2>${UI.isNew ? "" : (() => { const w = WI().get(d.id); return `<span class="count">${w ? `穿過 ${w.count} 次・上次 ${w.last}` : "還沒有穿香紀錄"}</span>`; })()}</div>
   <details class="card" data-open="paste"${UI.open.paste ? " open" : ""}><summary>貼上自動填入</summary>
     <p class="hint">把 Claude 查好的資料整段貼上（每行「欄位：內容」），按「帶入欄位」。只會填入貼上有的欄位，存檔前都可以再改。</p>
     <div class="field mt"><textarea id="paste" class="paste" rows="6" aria-label="貼上資料" placeholder="品牌：…&#10;名稱：…&#10;濃度：EDP&#10;前調：…">${esc(UI.pasteText)}</textarea></div>
@@ -811,8 +905,8 @@ function renderImport(){
   const imp = UI.imp;
   if(!imp) return "";
   if(imp.error) return `<div class="note danger mt">${esc(imp.error)} <button class="linkbtn" type="button" data-act="imp-cancel">關閉</button></div>`;
-  const info = `檔案內有 ${imp.items.length} 款${imp.photoCount ? `（含 ${imp.photoCount} 張照片）` : "（不含照片）"}${imp.exported ? `，匯出於 ${imp.exported}` : ""}。${imp.skipped ? ` 另有 ${imp.skipped} 筆缺少品牌或名稱，會略過。` : ""}`;
-  if(UI.impConfirm) return `<div class="note danger mt"><p style="margin:0 0 8px">取代會刪除目前的 ${S.items.length} 款，改成檔案裡的 ${imp.items.length} 款。確定嗎？</p><div class="toolbar"><button class="btn danger" type="button" data-act="imp-replace-ok"${UI.busy ? " disabled" : ""}>確定取代</button><button class="btn" type="button" data-act="imp-cancel">取消</button></div></div>`;
+  const info = `檔案內有 ${imp.items.length} 款${imp.photoCount ? `（含 ${imp.photoCount} 張照片）` : "（不含照片）"}${imp.wears && imp.wears.length ? `、${imp.wears.length} 筆日誌` : ""}${imp.exported ? `，匯出於 ${imp.exported}` : ""}。${imp.skipped ? ` 另有 ${imp.skipped} 筆缺少品牌或名稱，會略過。` : ""}`;
+  if(UI.impConfirm) return `<div class="note danger mt"><p style="margin:0 0 8px">取代會刪除目前的 ${S.items.length} 款${S.wears.length ? `和 ${S.wears.length} 筆日誌` : ""}，改成檔案裡的內容。確定嗎？</p><div class="toolbar"><button class="btn danger" type="button" data-act="imp-replace-ok"${UI.busy ? " disabled" : ""}>確定取代</button><button class="btn" type="button" data-act="imp-cancel">取消</button></div></div>`;
   return `<div class="note mt"><p style="margin:0 0 8px">${esc(info)}</p><div class="toolbar"><button class="btn solid" type="button" data-act="imp-merge"${UI.busy ? " disabled" : ""}>合併</button><button class="btn" type="button" data-act="imp-replace">取代</button><button class="btn" type="button" data-act="imp-cancel">取消</button></div>
     <p class="hint">合併：保留現有資料並加入新的；同一款以較新修改的為準。取代：清掉現有資料，換成檔案內容。</p></div>`;
 }
@@ -823,6 +917,11 @@ function renderSettings(){
   return renderNotices(true) + `<div class="stack">
   <section class="card stack"><h2>外觀</h2><div><div class="lbl">主題</div><div class="mt-s"><div class="seg" role="radiogroup" aria-label="主題">${[["auto","自動"],["light","淺色"],["dark","深色"]].map(([k, l]) =>
     `<label><input type="radio" name="theme" data-set="theme" value="${k}"${UI.theme === k ? " checked" : ""}><span>${l}</span></label>`).join("")}</div></div></div></section>
+  <section class="card stack"><h2>季節月份</h2>
+    <p class="hint" style="margin:0">穿香日誌和「今天噴什麼」用這個表判斷季節。台灣夏天比較長，可以自己調。</p>
+    <div class="months">${S.settings.seasonMonths.map((v, i) => `<div class="field"><label for="m-${i}">${i + 1} 月</label><select id="m-${i}" data-month="${i}">${SEASONS.map(([k, l]) => `<option value="${k}"${v === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>`).join("")}</div>
+    <div><button class="linkbtn" type="button" data-act="months-reset">恢復預設（3–5 月春、6–8 月夏、9–11 月秋、12–2 月冬）</button></div>
+  </section>
   <section class="card stack"><h2>備份</h2>
     ${bk}
     <p class="hint" style="margin:0">資料只存在這台裝置的瀏覽器裡。iPhone 請用「加入主畫面」開啟，並定期匯出備份檔（存到「檔案」或雲端硬碟）。換手機時，在新手機匯入即可。</p>
@@ -840,9 +939,86 @@ function renderSettings(){
   <section class="card"><h2>更新紀錄</h2><ul class="chglog">${CHANGELOG.map(([v, dt, t]) => `<li><b>v${v}</b>（${dt}）${esc(t)}</li>`).join("")}</ul></section>
 </div>`;
 }
+function thumbHTML(it){ return `<span class="thumb${it ? "" : " sm"}">${it && it.hasPhoto ? `<img data-photo="${esc(it.id)}" alt="">` : BOTTLE}</span>`; }
+function renderLog(){
+  const items = new Map(S.items.map(x => [x.id, x])), months = S.settings.seasonMonths;
+  const canAdd = S.items.length > 0;
+  const head = `<div class="toolbar listhead"><span class="count">${S.wears.length ? `共 ${S.wears.length} 筆紀錄` : ""}</span><button class="btn solid" type="button" data-act="wear-new"${canAdd ? "" : " disabled"}>＋ 記錄</button></div>`;
+  if(!S.wears.length) return renderNotices() + head + `<div class="card empty"><p><b>還沒有穿香紀錄</b></p><p>${canAdd ? "在收藏清單按「今天噴」就會記下今天，或按上面的「＋ 記錄」補記。" : "先到「收藏」新增香水，之後就能記錄每天噴了什麼。"}</p></div>`;
+  const all = sortWears(S.wears), list = all.slice(0, UI.logLimit);
+  let out = "", cur = "";
+  list.forEach(w => {
+    const ym = w.date.slice(0, 7);
+    if(ym !== cur){ if(cur) out += `</div>`; cur = ym; out += `<div class="sec-title mt">${Number(ym.slice(0, 4))} 年 ${Number(ym.slice(5, 7))} 月</div><div class="wlist">`; }
+    const it = items.get(w.itemId);
+    const chips = [`<span class="flag info">${label(SEASONS, seasonOf(w.date, months))}</span>`,
+      w.occasion ? `<span class="tier">${esc(label(OCCASIONS, w.occasion))}</span>` : "",
+      w.sprays != null ? `<span class="count">${w.sprays} 下</span>` : "",
+      w.hours != null ? `<span class="count">持香 ${fmtNum(w.hours)} 小時</span>` : ""].join("");
+    out += `<button type="button" class="wcard" data-act="wear-edit" data-id="${esc(w.id)}"><span class="wdate">${esc(dateLabel(w.date))}</span>${thumbHTML(it)}<span class="pbody">` +
+      `<span class="pbrand">${esc(it ? it.brand : "")}</span><span class="pname">${esc(it ? it.name : "（找不到這款香水）")}</span><span class="pmeta">${chips}</span>` +
+      (w.memo ? `<span class="wmemo">${esc(w.memo)}</span>` : "") + `</span></button>`;
+  });
+  if(cur) out += `</div>`;
+  const more = all.length > list.length ? `<div class="mt" style="text-align:center"><button class="btn" type="button" data-act="log-more">顯示更早的紀錄（還有 ${all.length - list.length} 筆）</button></div>` : "";
+  return renderNotices() + head + out + more;
+}
+function wSeg(field, list, value, aria){
+  const opts = [["", "未填"]].concat(list);
+  return `<div class="seg" role="radiogroup" aria-label="${esc(aria)}">${opts.map(([k, l]) =>
+    `<label><input type="radio" name="w-${field}" data-w="${field}" value="${esc(k)}"${value === k ? " checked" : ""}><span>${esc(l)}</span></label>`).join("")}</div>`;
+}
+function wField(id, field, text, o){
+  o = o || {};
+  const v = UI.wdraft[field];
+  return `<div class="field"><label for="${id}">${text}${o.unit ? ` <span class="unit">${o.unit}</span>` : ""}</label><input id="${id}" data-w="${field}" type="${o.type || "text"}"${o.mode ? ` inputmode="${o.mode}"` : ""} autocomplete="off" value="${esc(v == null ? "" : v)}"${o.ph ? ` placeholder="${esc(o.ph)}"` : ""}></div>`;
+}
+function itemOptions(sel){
+  const groups = [["擁有／分裝", x => x.status === "own" || x.status === "decant"], ["其他", x => !(x.status === "own" || x.status === "decant")]];
+  return groups.map(([g, f]) => { const xs = sortItems(S.items.filter(f), "name"); return xs.length ? `<optgroup label="${g}">${xs.map(x => `<option value="${esc(x.id)}"${x.id === sel ? " selected" : ""}>${esc(x.brand + " " + x.name)}</option>`).join("")}</optgroup>` : ""; }).join("");
+}
+function renderWearForm(){
+  const w = UI.wdraft;
+  const season = isDate(w.date) ? label(SEASONS, seasonOf(w.date, S.settings.seasonMonths)) : "";
+  return `<div class="form">
+  <div class="toolbar"><button class="btn" type="button" data-act="cancel">← 返回</button><h2>${UI.wIsNew ? "新增穿香紀錄" : "編輯穿香紀錄"}</h2></div>
+  <section class="card stack">
+    <div class="field"><label for="w-item">香水</label><select id="w-item" data-w="itemId"${UI.wErr && !w.itemId ? ' class="err"' : ""}>${w.itemId ? "" : `<option value="" selected>請選擇</option>`}${itemOptions(w.itemId)}</select></div>
+    <div class="grid2">${wField("w-date", "date", "日期", { type: "date" })}<div class="field"><span class="lbl">季節</span><span class="wseason">${season ? esc(season) + "（依日期自動判斷）" : "—"}</span></div></div>
+    <div><div class="lbl">場合</div><div class="mt-s">${wSeg("occasion", OCCASIONS, w.occasion, "場合")}</div></div>
+    <div class="grid2">${wField("w-sprays", "sprays", "噴幾下", { mode: "numeric" })}${wField("w-hours", "hours", "持香時間", { unit: "小時", mode: "decimal" })}</div>
+    <div class="field"><label for="w-memo">心得</label><textarea id="w-memo" data-w="memo" rows="3">${esc(w.memo)}</textarea></div>
+  </section>
+  <div class="formbar">${UI.wIsNew ? "" : `<button class="btn danger" type="button" data-act="wear-del">刪除</button>`}<div class="r"><button class="btn" type="button" data-act="cancel">取消</button><button class="btn solid" type="button" data-act="wear-save">儲存</button></div></div>
+</div>`;
+}
+function renderPick(){
+  const today = todayStr(), wi = WI();
+  const season = UI.pickSeason || seasonOf(today, S.settings.seasonMonths), time = UI.pickTime || nowTime();
+  const pool = S.items.filter(x => x.status === "own" || x.status === "decant");
+  const head = `<section class="card stack"><div class="pickhead"><b>今天 ${esc(dateLabel(today))}</b></div>
+    <div><div class="lbl">季節</div><div class="chips mt-s">${SEASONS.map(([k, l]) => chip("pick-season", k, l, season === k)).join("")}</div></div>
+    <div><div class="lbl">時段</div><div class="chips mt-s">${TIMES.map(([k, l]) => chip("pick-time", k, l, time === k)).join("")}</div></div></section>`;
+  if(!pool.length) return renderNotices() + head + `<div class="card empty mt"><p>還沒有「擁有」或「分裝／小樣」的香水。</p><p>先到「收藏」新增，就能幫你挑今天要噴哪一瓶。</p></div>`;
+  const list = pickCandidates(S.items, wi, season, time, today);
+  if(!list.length) return renderNotices() + head + `<div class="card empty mt"><p>沒有標記適合「${label(SEASONS, season)}」的香水。</p><p class="hint">在香水的「適合」裡勾選季節；沒勾季節的香水也會列入候選。</p></div>`;
+  const off = UI.pickOffset % list.length, show = [];
+  for(let i = 0; i < Math.min(3, list.length); i++) show.push(list[(off + i) % list.length]);
+  const cards = show.map(it => {
+    const w = wi.get(it.id);
+    const fit = [it.seasons.length ? "" : "沒標季節", it.times.length && !it.times.includes(time) ? `適合${it.times.map(t => label(TIMES, t)).join("、")}` : ""].filter(Boolean).join("・");
+    return `<div class="pcard"><button type="button" class="pmain" data-act="edit" data-id="${esc(it.id)}">${thumbHTML(it)}<span class="pbody"><span class="pbrand">${esc(it.brand)}</span><span class="pname">${esc(it.name)}</span>` +
+      `<span class="pmeta">${it.conc ? `<span class="route">${esc(label(CONC, it.conc))}</span>` : ""}<span class="count">上次噴：${agoText(w && w.last, today)}</span>${fit ? `<span class="flag warn">${esc(fit)}</span>` : ""}</span>` +
+      `${it.families.length ? `<span class="pfam">${esc(it.families.map(k => label(FAMS, k)).join("・"))}</span>` : ""}</span></button>${wearBtn(it, w, today, "就噴這瓶")}</div>`;
+  }).join("");
+  return renderNotices() + head + `<div class="listhead mt"><span class="count">符合 ${list.length} 款，優先列出很久沒噴的</span>${list.length > 3 ? `<button class="btn" type="button" data-act="pick-more">換一批</button>` : ""}</div><div class="plist">${cards}</div>`;
+}
 function renderMain(){
   if(UI.tab === "settings") return renderSettings();
   if(UI.view === "form" && UI.draft) return renderForm();
+  if(UI.view === "wear" && UI.wdraft) return renderWearForm();
+  if(UI.tab === "log") return renderLog();
+  if(UI.tab === "pick") return renderPick();
   return renderCollection();
 }
 
@@ -887,11 +1063,14 @@ function toast(msg, o){
   o = o || {};
   const t = $("#toast");
   if(!t) return;
-  t.innerHTML = esc(msg) + (o.undo ? `・<button type="button" class="linkbtn" data-act="undo">復原</button>` : "");
+  UI.undoFn = o.undo || null;
+  t.innerHTML = esc(msg) + (o.undo ? `・<button type="button" class="linkbtn" data-act="undo">復原</button>` : "") +
+    (o.action ? `・<button type="button" class="linkbtn" data-act="${esc(o.action[1])}" data-id="${esc(o.action[2] || "")}">${esc(o.action[0])}</button>` : "");
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, o.ms || (o.undo ? 5000 : 2800));
+  toastTimer = setTimeout(() => { t.hidden = true; UI.undoFn = null; }, o.ms || (o.undo ? 5000 : 2800));
 }
+function hideToast(){ const t = $("#toast"); if(t) t.hidden = true; UI.undoFn = null; clearTimeout(toastTimer); }
 function persist(next){
   if(UI.readOnly){ toast("目前暫停存檔，請重新整理頁面", { ms: 4000 }); return false; }
   if(!store.save(next)){ toast("儲存失敗：裝置空間不足或在私密瀏覽模式。請到設定匯出備份。", { ms: 6000 }); return false; }
@@ -908,11 +1087,19 @@ function openForm(id){
   UI.draft = draftFrom(it || normalizeItem({}));
   UI.isNew = !it; UI.view = "form"; UI.formErr = false; UI.dupOk = false;
   UI.pasteText = ""; UI.pasteMsg = null; UI.tagIn = {}; UI.open.paste = false; UI.open.buy = null;
+  UI.snap = draftSig();
   render(); window.scrollTo(0, 0);
 }
+function draftSig(){
+  if(UI.view === "form" && UI.draft){ const { _photoBlob, ...rest } = UI.draft; return JSON.stringify(rest) + (_photoBlob ? "|photo" : "") + Object.values(UI.tagIn).join("").trim(); }
+  if(UI.view === "wear" && UI.wdraft) return JSON.stringify(UI.wdraft);
+  return "";
+}
+function isDirty(){ return (UI.view === "form" || UI.view === "wear") && draftSig() !== UI.snap; }
+function confirmLeave(){ if(!isDirty()) return true; try{ return window.confirm("還沒儲存，確定要離開嗎？"); }catch(e){ return true; } }
 function closeForm(){
   if(UI.draftURL){ URL.revokeObjectURL(UI.draftURL); UI.draftURL = ""; }
-  UI.draft = null; UI.view = "list"; UI.busy = false;
+  UI.draft = null; UI.wdraft = null; UI.view = "list"; UI.busy = false; UI.snap = "";
 }
 function backToList(){ const y = UI.listY; closeForm(); render(); requestAnimationFrame(() => window.scrollTo(0, y)); }
 function addTag(layer, raw){
@@ -956,17 +1143,67 @@ function finalizePendingDelete(){
 function deleteItem(id){
   finalizePendingDelete();
   const idx = S.items.findIndex(x => x.id === id); if(idx < 0) return;
-  const item = S.items[idx];
-  if(!persist({ ...S, items: S.items.filter(x => x.id !== id) })) return;
-  UI.pendingDel = { item, idx, timer: setTimeout(finalizePendingDelete, 5600) };
+  const item = S.items[idx], wears = S.wears.filter(w => w.itemId === id);
+  if(!persist({ ...S, items: S.items.filter(x => x.id !== id), wears: S.wears.filter(w => w.itemId !== id) })) return;
+  UI.pendingDel = { item, idx, wears, timer: setTimeout(finalizePendingDelete, 5600) };
   backToList();
-  toast(`已刪除 ${item.name}`, { undo: true });
+  toast(`已刪除 ${item.name}${wears.length ? `（含 ${wears.length} 筆日誌）` : ""}`, { undo: undoDelete });
 }
 function undoDelete(){
   const p = UI.pendingDel; if(!p) return;
   clearTimeout(p.timer); UI.pendingDel = null;
   const items = S.items.slice(); items.splice(Math.min(p.idx, items.length), 0, p.item);
-  if(persist({ ...S, items })){ if(UI.view === "list") render(); toast("已復原"); }
+  const ids = new Set(S.wears.map(w => w.id));
+  if(persist({ ...S, items, wears: S.wears.concat(p.wears.filter(w => !ids.has(w.id))) })){ if(UI.view === "list") render(); toast("已復原"); }
+}
+function addWear(itemId){
+  const it = S.items.find(x => x.id === itemId); if(!it) return;
+  const today = todayStr(), w0 = WI().get(itemId);
+  if(w0 && w0.last === today){ toast(`${it.name} 今天已經記錄過了`, { action: ["到日誌補充", "goto-log"] }); return; }
+  const w = normalizeWear({ itemId, date: today });
+  if(!persist({ ...S, wears: [w, ...S.wears] })) return;
+  render();
+  toast(`已記錄：今天噴 ${it.name}`, { undo: () => removeWear(w.id, true), action: ["補充細節", "wear-edit", w.id], ms: 6000 });
+}
+function removeWear(id, quiet){
+  const w = S.wears.find(x => x.id === id); if(!w) return;
+  if(!persist({ ...S, wears: S.wears.filter(x => x.id !== id) })) return;
+  if(UI.view === "list") render();
+  if(quiet) toast("已取消這筆紀錄");
+  return w;
+}
+function openWear(id, itemId){
+  const w = id ? S.wears.find(x => x.id === id) : null;
+  if(id && !w) return;
+  hideToast();
+  if(UI.view !== "list") closeForm();
+  UI.listY = window.scrollY || 0;
+  let pre = itemId || "";
+  if(!w && !pre){ const own = S.items.filter(x => x.status === "own" || x.status === "decant"); const recent = sortWears(S.wears)[0]; pre = recent && S.items.some(x => x.id === recent.itemId) ? recent.itemId : (own[0] || S.items[0] || {}).id || ""; }
+  const src = w || normalizeWear({ itemId: pre, date: todayStr() });
+  UI.wdraft = { ...src, sprays: src.sprays == null ? "" : String(src.sprays), hours: src.hours == null ? "" : String(src.hours) };
+  UI.wIsNew = !w; UI.wErr = false; UI.view = "wear";
+  UI.snap = draftSig();
+  render(); window.scrollTo(0, 0);
+}
+function saveWear(){
+  const d = UI.wdraft; if(!d) return;
+  if(!d.itemId || !S.items.some(x => x.id === d.itemId)){ UI.wErr = true; render(); toast("請選擇香水"); return; }
+  if(!isDate(d.date)){ toast("請填日期"); return; }
+  const now = Date.now(), w = normalizeWear({ ...d, created: UI.wIsNew ? now : d.created, updated: now });
+  const wears = UI.wIsNew ? [w, ...S.wears] : S.wears.map(x => x.id === w.id ? w : x);
+  if(!persist({ ...S, wears })) return;
+  const isNew = UI.wIsNew;
+  backToList();
+  toast(isNew ? "已新增紀錄" : "已儲存");
+}
+function deleteWear(){
+  const d = UI.wdraft; if(!d) return;
+  const idx = S.wears.findIndex(x => x.id === d.id); if(idx < 0) return;
+  const w = S.wears[idx];
+  if(!persist({ ...S, wears: S.wears.filter(x => x.id !== w.id) })) return;
+  backToList();
+  toast("已刪除這筆紀錄", { undo: () => { const ws = S.wears.slice(); ws.splice(Math.min(idx, ws.length), 0, w); if(persist({ ...S, wears: ws })){ if(UI.view === "list") render(); toast("已復原"); } } });
 }
 async function handlePhoto(file){
   if(!file || !UI.draft) return;
@@ -1060,8 +1297,12 @@ async function doImport(mode){
       catch(e){ fail++; it.hasPhoto = !!(prev && prev.hasPhoto); }
     } else it.hasPhoto = !!(prev && prev.hasPhoto);
   }
+  const ids = new Set(next.map(x => x.id));
+  let wears, settings = S.settings;
+  if(mode === "merge"){ const mw = mergeWears(S.wears, imp.wears || [], ids); wears = mw.wears; if(mw.added) msg += `；日誌新增 ${mw.added} 筆`; }
+  else { wears = (imp.wears || []).filter(w => ids.has(w.itemId)).map(w => ({ ...w })); if(imp.settings) settings = { ...S.settings, seasonMonths: imp.settings.seasonMonths }; }
   UI.busy = false;
-  if(!persist({ ...S, items: next })){ render(); return; }
+  if(!persist({ ...S, items: next, wears, settings })){ render(); return; }
   if(mode === "replace"){
     const keep = new Set(next.filter(x => x.hasPhoto).map(x => x.id));
     old.forEach((x, id) => { if(x.hasPhoto && !keep.has(id)){ store.delPhoto(id).catch(() => {}); dropPhotoURL(id); } });
@@ -1084,20 +1325,31 @@ function onClick(e){
     case "tab": {
       const t = b.dataset.tab;
       if(UI.tab === t && UI.view === "list") return;
-      if(UI.view === "form") closeForm();
+      if(UI.view !== "list"){ if(!confirmLeave()) return; closeForm(); }
       UI.tab = t; render(); window.scrollTo(0, 0); break;
     }
     case "add": openForm(null); break;
-    case "edit": openForm(b.dataset.id); break;
-    case "cancel": backToList(); break;
+    case "edit": if(UI.view !== "list" && !confirmLeave()) return; closeForm(); openForm(b.dataset.id); break;
+    case "cancel": if(confirmLeave()) backToList(); break;
     case "save": saveDraft(); break;
     case "del": if(UI.draft) deleteItem(UI.draft.id); break;
-    case "undo": undoDelete(); break;
+    case "undo": { const f = UI.undoFn; hideToast(); if(f) f(); break; }
+    case "wear": addWear(b.dataset.id); break;
+    case "wear-new": if(confirmLeave()) openWear(null); break;
+    case "wear-edit": if(UI.view === "list" || confirmLeave()){ if(UI.tab !== "log"){ UI.tab = "log"; } openWear(b.dataset.id); } break;
+    case "wear-save": saveWear(); break;
+    case "wear-del": deleteWear(); break;
+    case "goto-log": hideToast(); if(UI.view === "list" || confirmLeave()){ closeForm(); UI.tab = "log"; render(); window.scrollTo(0, 0); } break;
+    case "log-more": UI.logLimit += 200; render(); break;
+    case "pick-season": UI.pickSeason = v; UI.pickOffset = 0; render(); break;
+    case "pick-time": UI.pickTime = v; UI.pickOffset = 0; render(); break;
+    case "pick-more": UI.pickOffset += 3; render(); break;
+    case "months-reset": { const settings = { ...S.settings, seasonMonths: DEFAULT_MONTHS.slice() }; if(persist({ ...S, settings })){ render(); toast("已恢復預設季節"); } break; }
     case "fstatus": UI.f.status = v; render(); break;
     case "ffam": toggleArr(UI.f.fams, v); render(); break;
     case "fseason": toggleArr(UI.f.seasons, v); render(); break;
     case "fclear": UI.f = { status: "all", fams: [], seasons: [], q: "" }; render(); break;
-    case "goto-settings": UI.tab = "settings"; render(); window.scrollTo(0, 0); break;
+    case "goto-settings": if(UI.view !== "list" && !confirmLeave()) return; closeForm(); UI.tab = "settings"; render(); window.scrollTo(0, 0); break;
     case "dtoggle": {
       const d = UI.draft, f = b.dataset.f; if(!d || !Array.isArray(d[f])) return;
       if(f === "families" && !d[f].includes(v) && d[f].length >= 2){ toast("香調家族最多選 2 個"); return; }
@@ -1131,6 +1383,7 @@ function onInput(e){
     }
     return;
   }
+  if(t.dataset.w && UI.wdraft && t.type !== "radio" && t.tagName !== "SELECT"){ UI.wdraft[t.dataset.w] = t.value; if(t.dataset.w === "date"){ const el = $(".wseason"); if(el) el.textContent = isDate(t.value) ? label(SEASONS, seasonOf(t.value, S.settings.seasonMonths)) + "（依日期自動判斷）" : "—"; } return; }
   if(t.dataset.f && UI.draft && t.type !== "radio"){ UI.draft[t.dataset.f] = t.value; if(UI.formErr && t.classList.contains("err") && t.value.trim()) t.classList.remove("err"); }
 }
 function onChange(e){
@@ -1148,6 +1401,14 @@ function onChange(e){
     if(layered && !d.notes.top.length && !d.notes.mid.length && !d.notes.base.length) d.notes.mid = d.notes.all.slice();
     render(); return;
   }
+  if(t.dataset.month != null){
+    const i = Number(t.dataset.month), months = S.settings.seasonMonths.slice();
+    if(months[i] === t.value) return;
+    months[i] = t.value;
+    if(persist({ ...S, settings: { ...S.settings, seasonMonths: months } })) toast(`${i + 1} 月改為${label(SEASONS, t.value)}`);
+    return;
+  }
+  if(t.dataset.w && UI.wdraft && (t.type === "radio" || t.tagName === "SELECT")){ if(UI.wdraft[t.dataset.w] === t.value) return; UI.wdraft[t.dataset.w] = t.value; if(t.dataset.w === "itemId"){ UI.wErr = false; t.classList.remove("err"); } return; }
   if(t.type === "radio" && t.dataset.f && UI.draft){ if(UI.draft[t.dataset.f] === t.value) return; UI.draft[t.dataset.f] = t.value; }
 }
 function onKey(e){

@@ -6,8 +6,9 @@ const T = suite("store");
   // --- 存取往返 ---
   {
     const { run, ls } = load();
-    T.eq(run("store.load()"), { data: { schema: 1, items: [], settings: { lastBackup: 0 } } }, "空的 localStorage 回傳預設資料");
-    run(`S = { schema: 1, items: [normalizeItem({ brand: "Le Labo", name: "Santal 33", status: "own", conc: "edp", families: ["woody","leather"], notes: { top: ["小荳蔻"], mid: ["鳶尾"], base: ["檀香"] }, buyDate: "2026-01-31", price: "6,800", volume: "50" })], settings: { lastBackup: 0 } }`);
+    T.eq(run("store.load()"), { data: run("freshData()") }, "空的 localStorage 回傳預設資料");
+    T.eq(run("freshData().schema"), 2, "schema 2");
+    run(`S = { schema: 2, items: [normalizeItem({ brand: "Le Labo", name: "Santal 33", status: "own", conc: "edp", families: ["woody","leather"], notes: { top: ["小荳蔻"], mid: ["鳶尾"], base: ["檀香"] }, buyDate: "2026-01-31", price: "6,800", volume: "50" })], wears: [], settings: normalizeSettings({}) }; S.wears = [normalizeWear({ itemId: S.items[0].id, date: "2026-10-01", occasion: "work", sprays: "3", hours: "6.5", memo: "第一天" })];`);
     T.ok(run("store.save(S)") === true, "save 成功");
     const back = run("store.load()").data;
     T.eq(back, run("S"), "save → load 相同");
@@ -15,6 +16,39 @@ const T = suite("store");
     T.eq(back.items[0].price, 6800, "價格去千分位轉數字");
     T.ok(ls.getItem("perfume-log-data").length > 10, "只寫入 perfume-log-data");
     T.eq([...ls._m.keys()], ["perfume-log-data"], "沒有其他鍵");
+  }
+  // --- schema 1 → 2 升級 ---
+  {
+    const v1 = { schema: 1, items: [{ id: "a", brand: "A", name: "B" }], settings: { lastBackup: 123 } };
+    const { run } = load({ localStorage: fakeStorage({ "perfume-log-data": JSON.stringify(v1) }) });
+    const d = run("store.load()").data;
+    T.eq([d.schema, d.items.length, d.wears, d.settings.lastBackup, d.settings.seasonMonths.length], [2, 1, [], 123, 12], "v1 資料升級到 v2 不掉資料");
+    const v2 = { schema: 2, items: [{ id: "a", brand: "A", name: "B" }], wears: [{ id: "w1", itemId: "a", date: "2026-02-30x" }, { id: "w2", itemId: "ghost", date: "2026-01-01" }, null], settings: { seasonMonths: ["x"] } };
+    const { run: r2 } = load({ localStorage: fakeStorage({ "perfume-log-data": JSON.stringify(v2) }) });
+    const d2 = r2("store.load()").data;
+    T.eq([d2.wears.length, d2.wears[0].id, /^\d{4}-\d{2}-\d{2}$/.test(d2.wears[0].date), d2.settings.seasonMonths[6]], [1, "w1", true, "summer"], "日誌正規化：孤兒略過、壞日期修正、壞月份表用預設");
+  }
+  // --- 日誌、季節、推薦 ---
+  {
+    const { run } = load();
+    T.eq(["2026-01-15", "2026-03-01", "2026-06-30", "2026-09-01", "2026-12-31"].map(d => run(`seasonOf("${d}")`)), ["winter", "spring", "summer", "autumn", "winter"], "預設季節");
+    T.eq(run(`seasonOf("2026-09-15", ["winter","winter","spring","spring","summer","summer","summer","summer","summer","autumn","autumn","winter"])`), "summer", "自訂季節月份");
+    T.eq(run(`(() => { const m = wearIndex([{itemId:"a",date:"2026-01-02"},{itemId:"a",date:"2026-03-01"},{itemId:"b",date:"2025-12-31"}]); return [m.get("a"), m.get("b").count]; })()`), [{ count: 2, last: "2026-03-01" }, 1], "穿著次數與上次日期");
+    T.eq([run(`agoText("", "2026-10-26")`), run(`agoText("2026-10-26", "2026-10-26")`), run(`agoText("2026-10-25", "2026-10-26")`), run(`agoText("2026-09-26", "2026-10-26")`)], ["還沒噴過", "今天", "昨天", "30 天前"], "上次噴文字");
+    const pickIds = run(`(() => {
+      const it = (id, o) => normalizeItem(Object.assign({ id, brand: "B", name: id, status: "own" }, o));
+      const items = [it("summerOnly", { seasons: ["summer"] }), it("old", { seasons: ["autumn"] }), it("never", { seasons: ["autumn"] }), it("today", { seasons: ["autumn"] }),
+        it("noSeason", {}), it("nightOnly", { seasons: ["autumn"], times: ["night"] }), it("want", { status: "want", seasons: ["autumn"] }), it("dec", { status: "decant", seasons: ["autumn"] })];
+      const wi = wearIndex([{ itemId: "old", date: "2026-01-01" }, { itemId: "today", date: "2026-10-26" }, { itemId: "dec", date: "2026-10-20" }]);
+      return pickCandidates(items, wi, "autumn", "day", "2026-10-26").map(x => x.id);
+    })()`);
+    T.eq(pickIds, ["never", "old", "dec", "nightOnly", "noSeason", "today"], "今天噴什麼排序：今天噴過放最後→季節符合→時段→最久沒噴");
+    const mw = run(`(() => { const r = mergeWears([{id:"1",itemId:"a",updated:5},{id:"2",itemId:"x",updated:1}], [{id:"1",itemId:"a",updated:9,memo:"new"},{id:"3",itemId:"a",updated:1},{id:"4",itemId:"zz",updated:1}], new Set(["a"])); return [r.wears.map(w=>w.id), r.wears[0].memo, r.added]; })()`);
+    T.eq(mw, [["1", "3"], "new", 1], "日誌合併：較新優先、孤兒略過");
+    const vi = run(`validateImport(JSON.stringify({ app:"perfume-log", schema:2, items:[{id:"a",brand:"A",name:"B"}], wears:[{id:"w",itemId:"a",date:"2026-01-01"},{id:"w",itemId:"a",date:"2026-01-02"},{id:"q",itemId:"nope"}], settings:{ seasonMonths: DEFAULT_MONTHS } }))`);
+    T.eq([vi.wears.length, vi.settings.seasonMonths.length], [1, 12], "匯入日誌：重複 id 與孤兒略過");
+    const oldFile = run(`validateImport(JSON.stringify({ app:"perfume-log", schema:1, items:[{id:"a",brand:"A",name:"B"}] }))`);
+    T.eq([oldFile.items.length, oldFile.wears.length], [1, 0], "v0.1 的備份檔可以匯入");
   }
   // --- 寫入失敗 ---
   {
@@ -69,7 +103,9 @@ const T = suite("store");
   {
     const { run } = load();
     run(`S = freshData(); for(let i=0;i<40;i++) S.items.push(normalizeItem({ brand: "B"+i, name: "N<&>\\"'"+i, status: STATUS[i%5][0], families: [FAMS[i%14][0]], notesLayered: i%2===0, notes: { all: ["麝香"], top: ["佛手柑"] }, memo: "第"+i+"行\\n第二行", rating: i%6, created: 1000+i, updated: 2000+i }));`);
+    run(`S.items.forEach((it, i) => { if(i % 3 === 0) S.wears.push(normalizeWear({ itemId: it.id, date: "2026-0" + (1 + i % 9) + "-1" + (i % 10), memo: "<i>心得</i>", created: 10 + i, updated: 20 + i })); })`);
     const json = await run(`store.exportAll(S, false).then(r => JSON.stringify(r.out))`);
+    T.eq(run(`(() => { const imp = validateImport(${JSON.stringify(json)}); return mergeWears([], imp.wears, new Set(imp.items.map(x=>x.id))).wears; })()`), run("S.wears"), "日誌匯出 → 匯入相同");
     const imp = run(`validateImport(${JSON.stringify(json)})`);
     T.eq(imp.items.length, 40, "匯入筆數相同");
     const merged = run(`(() => { const imp = validateImport(${JSON.stringify(json)}); return mergeItems([], imp.items).items; })()`);

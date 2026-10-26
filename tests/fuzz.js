@@ -33,7 +33,7 @@ function check(html, where){
 for(let round = 0; round < 60; round++){
   try{
     const raw = Array.from({ length: Math.floor(rnd() * 25) }, randItem);
-    run(`S = migrate(${JSON.stringify({ schema: 1, items: raw, settings: { lastBackup: pick([0, 1, 1e12, "x"]) } })}).data`);
+    run(`S = migrate(${JSON.stringify({ schema: 2, items: raw, wears: [], settings: { lastBackup: pick([0, 1, 1e12, "x"]), seasonMonths: pick([undefined, ["summer"], Array(12).fill("summer")]) } })}).data`);
     run(`UI.f = ${JSON.stringify({ status: pick(["all","own","want"]), fams: rnd() < .5 ? ["woody"] : [], seasons: rnd() < .5 ? ["winter"] : [], q: pick(["", "le", XSS, "😀"]) })}; UI.sort = ${JSON.stringify(pick(["new","rating","buy","name","bad"]))}; UI.tab="coll"; UI.view="list"; UI.open = { more: ${rnd() < .5} };`);
     check(run("renderTabs()"), "renderTabs");
     check(run("renderCollection()"), "renderCollection");
@@ -47,6 +47,15 @@ for(let round = 0; round < 60; round++){
     const pasted = Array.from({ length: 8 }, () => pick(["品牌：", "名稱：", "濃度：", "前調：", "季節：", "年份：", "持香：", "xx：", ""]) + pick(STRS)).join("\n");
     run(`UI.draft = applyPatch(UI.draft, parsePaste(${JSON.stringify(pasted)}).patch)`);
     check(run("renderForm()"), "renderForm（貼上後）");
+    // 日誌、今天噴什麼、日誌表單
+    const wears = Array.from({ length: Math.floor(rnd() * 30) }, () => ({ id: pick([undefined, "w" + Math.floor(rnd() * 5)]), itemId: rnd() < .8 ? "ITEM" : pick(STRS), date: pick(["2026-10-26", "2025-01-01", "bad", undefined, "2026-02-29"]), occasion: pick(["work", "x", undefined]), sprays: VALS(), hours: VALS(), memo: pick(STRS) }));
+    run(`S.wears = S.items.length ? ${JSON.stringify(wears)}.map(w => normalizeWear(Object.assign(w, { itemId: w.itemId === "ITEM" ? S.items[Math.floor(Math.random()*S.items.length)].id : w.itemId }))) : []; UI.view = "list"; UI.logLimit = ${pick([1, 5, 100])}; UI.pickOffset = ${Math.floor(rnd() * 10)}; UI.pickSeason = ${JSON.stringify(pick(["", "winter", "summer"]))}; UI.pickTime = ${JSON.stringify(pick(["", "day", "night"]))};`);
+    run(`UI.tab = "log"`); check(run("renderMain()"), "renderLog");
+    run(`UI.tab = "pick"`); check(run("renderMain()"), "renderPick");
+    run(`UI.tab = "coll"; UI.sort = "worn"`); check(run("renderList()"), "renderList（最近穿著）");
+    run(`UI.wdraft = Object.assign(normalizeWear(${JSON.stringify(pick(wears) || {})}), { sprays: ${JSON.stringify(pick(STRS))}, hours: "" }); UI.wIsNew = ${rnd() < .5}; UI.wErr = ${rnd() < .5}; UI.view = "wear";`);
+    check(run("renderMain()"), "renderWearForm");
+    run(`UI.view = "list"`);
     // 設定與匯入預覽
     run(`UI.tab = "settings"; UI.imp = ${pick(["null", JSON.stringify({ error: XSS }), "validateImport(JSON.stringify({ items: S.items }))"])}; UI.impConfirm = ${rnd() < .5};`);
     if(run("UI.imp && UI.imp.error === undefined && !UI.imp.items") ) run("UI.imp = null");

@@ -413,6 +413,99 @@ def flow_log(browser, url, base):
     ctx.close()
 
 
+def flow_options(browser, url, base, W, scheme):
+    """v1.0：每個選項都點過一次，檢查溢出與錯誤"""
+    ctx = browser.new_context(viewport={"width": W, "height": 860}, color_scheme=scheme)
+    page = ctx.new_page()
+    errs, reqs = [], []
+    watch(page, errs, reqs, base)
+    page.goto(url)
+    page.evaluate("d => localStorage.setItem('perfume-log-data', JSON.stringify({ schema: 2, items: d.items, wears: d.wears, settings: { lastBackup: Date.now() } }))", {"items": seed_items(30), "wears": seed_wears(30)})
+    page.reload()
+    where = f"{W}px {scheme}"
+    for v in ["all", "own", "decant", "tried", "want", "gone"]:
+        page.click(f"[data-act=fstatus][data-v={v}]")
+        check(page, f"{where} 狀態 {v}")
+    page.click("summary:has-text('更多篩選')")
+    for v in ["spring", "summer", "autumn", "winter"]:
+        page.click(f"[data-act=fseason][data-v={v}]")
+    for v in ["woody", "floral"]:
+        page.click(f"[data-act=ffam][data-v={v}]")
+    check(page, f"{where} 多重篩選")
+    page.click("[data-act=fclear] >> nth=0")
+    for v in ["new", "worn", "rating", "buy", "name"]:
+        page.select_option("#sort", v)
+        check(page, f"{where} 排序 {v}")
+    # 表單每個選項
+    page.click("[data-act=add]")
+    for f, vals in [("status", ["own", "decant", "tried", "want", "gone"]), ("conc", ["extrait", "edp", "edt", "edc", "other", ""])]:
+        for v in vals:
+            page.click(f".seg input[data-f={f}][value='{v}'] >> xpath=..")
+    for v in ["floral", "woody", "amber"]:
+        page.click(f"[data-act=dtoggle][data-f=families][data-v={v}]")
+    for f, vals in [("seasons", ["spring", "summer", "autumn", "winter"]), ("times", ["day", "night"])]:
+        for v in vals:
+            page.click(f"[data-act=dtoggle][data-f={f}][data-v={v}]")
+    page.click(".chk:has-text('不分前中後調')")
+    ok(page.locator("[data-tagin=all]").count() == 1, f"{where} 切換不分層失敗")
+    page.fill("[data-tagin=all]", "麝香、白花、")
+    page.click(".chk:has-text('不分前中後調')")
+    ok(page.locator(".tag:has-text('麝香')").count() == 1, f"{where} 切回分層後香調沒帶到中調")
+    for n in ["5", "3"]:
+        page.click(f"[data-act=star][data-v='{n}']")
+    page.click("[data-act=star][data-v='0']")
+    ok(page.is_visible("text=未評分"), f"{where} 清除評分失敗")
+    for f in ["longevity", "sillage"]:
+        for v in ["weak", "mid", "strong", ""]:
+            page.click(f".seg input[data-f={f}][value='{v}'] >> xpath=..")
+    page.click("summary:has-text('容量與購買')")
+    for v in ["full", "70", "50", "30", "low", ""]:
+        page.click(f".seg input[data-f=level][value='{v}'] >> xpath=..")
+    png = os.path.join(tempfile.gettempdir(), f"opt-{W}.png"); make_png(png)
+    page.set_input_files("[data-file=photo]", png)
+    page.wait_for_selector(".pv img[src^='blob:']", timeout=5000)
+    page.click("[data-act=photo-rm]")
+    ok(page.locator(".pv img").count() == 0, f"{where} 移除照片失敗")
+    check(page, f"{where} 表單全部選項")
+    page.evaluate("() => { window.confirm = () => true; }")
+    page.click("[data-act=cancel] >> nth=0")
+    # 日誌表單選項
+    page.click("[data-act=tab][data-tab=log]")
+    page.click("[data-act=wear-new]")
+    for v in ["work", "casual", "date", "party", "formal", "home", "travel", "other", ""]:
+        page.click(f".seg input[data-w=occasion][value='{v}'] >> xpath=..")
+    check(page, f"{where} 日誌表單全部選項")
+    page.click("[data-act=cancel] >> nth=0")
+    # 今天噴什麼
+    page.click("[data-act=tab][data-tab=pick]")
+    for v in ["spring", "summer", "autumn", "winter"]:
+        page.click(f"[data-act=pick-season][data-v={v}]")
+        for t in ["day", "night"]:
+            page.click(f"[data-act=pick-time][data-v={t}]")
+            check(page, f"{where} 今天噴什麼 {v}/{t}")
+    if page.locator("[data-act=pick-more]").count():
+        page.click("[data-act=pick-more]")
+    # 統計
+    page.click("[data-act=tab][data-tab=stats]")
+    for v in ["all", "year", "90"]:
+        page.click(f"[data-act=stat-period][data-v='{v}']")
+        check(page, f"{where} 統計 {v}")
+    page.click("[data-act=stat-all]")
+    check(page, f"{where} 統計全部")
+    # 設定
+    page.click("[data-act=tab][data-tab=settings]")
+    for t in ["深色", "淺色", "自動"]:
+        page.click(f".seg label:has-text('{t}')")
+        check(page, f"{where} 主題 {t}")
+    page.click(".chk:has-text('包含照片')")
+    page.click("[data-act=copytpl]")
+    page.click("[data-act=months-reset]")
+    check(page, f"{where} 設定")
+    ok(not errs, f"{where} 全部選項：console 錯誤 {errs[:3]}")
+    ok(not reqs, f"{where} 全部選項：有外部網路請求 {reqs[:3]}")
+    ctx.close()
+
+
 def items_and_wears(page):
     return page.evaluate("() => JSON.parse(localStorage.getItem('perfume-log-data'))")
 
@@ -440,6 +533,10 @@ def main():
                 overview(b, url, base, 1280, "light", a.shots, "1280-light")
             flow(b, url, base, tmp)
             flow_log(b, url, base)
+            if widths:
+                for W in widths:
+                    for sc in ["light", "dark"]:
+                        flow_options(b, url, base, W, sc)
         except Exception as e:
             fails.append(f"例外：{type(e).__name__}: {str(e)[:400]}")
         finally:

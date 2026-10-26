@@ -283,6 +283,7 @@ pre.tpl{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--surface2);b
 .chglog{font-size:.84rem;padding-left:18px;margin:6px 0 0}
 .chglog li{margin-bottom:4px}
 .chglog b{font-family:var(--f-mono)}
+@media (max-width:360px){.tab{padding:9px 7px;font-size:.86rem}}
 </style>
 </head>
 <body>
@@ -296,7 +297,7 @@ pre.tpl{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--surface2);b
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <script>
-const APP_VERSION = "0.3";
+const APP_VERSION = "1.0";
 const UPDATED = "2026-10-26";
 const SCHEMA = 2;
 
@@ -317,6 +318,7 @@ const label = (list, v) => { const f = list.find(x => x[0] === v); return f ? f[
 const keysOf = list => list.map(x => x[0]);
 
 const CHANGELOG = [
+  ["1.0", "2026-10-26", "正式版。完整測試：320／390／768／1280 px × 淺色／深色，五個分頁的每個選項與操作全部點過；新增→重新整理、刪除→復原、匯出→清空→匯入（合併／取代）、壞檔匯入、v0.1 資料升級、500 筆資料效能。"],
   ["0.3", "2026-10-26", "統計分頁（擁有數、穿香次數、穿最多次與每次成本、最常穿的香調家族與香材、每年花費，可切換全部／今年／近 90 天）、願望清單欄位（想買的目標價格、在哪裡試過）。"],
   ["0.2", "2026-10-26", "穿香日誌（收藏卡片一鍵「今天噴」、日誌分頁可補場合／噴幾下／持香／心得）、今天噴什麼（依季節與時段挑久沒噴的）、季節月份設定、最近穿著排序、離開未儲存的表單前先確認。"],
   ["0.1", "2026-10-26", "第一版：收藏清單、新增／編輯／刪除（可復原）、照片、搜尋篩選排序、貼上自動填入、匯出匯入備份、主題切換。"]

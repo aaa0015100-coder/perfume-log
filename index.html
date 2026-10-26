@@ -238,6 +238,17 @@ table.grid td.hl{background:var(--accent-weak)}
 .pickhead{font-size:1rem}
 .wseason{font-size:.92rem;padding:8px 0}
 .field select.err{border-color:var(--danger)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tiles .rsum{margin:0}
+.statgrid{grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+th.num,td.num{text-align:right;font-family:var(--f-mono);white-space:nowrap}
+td .rowbtn{white-space:normal;padding:0;line-height:1.4}
+.bars{display:grid;gap:6px}
+.barrow{display:grid;grid-template-columns:minmax(56px,7em) minmax(0,1fr) auto;gap:8px;align-items:center;font-size:.86rem}
+.bl{overflow-wrap:anywhere}
+.bar{height:10px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.bar span{display:block;height:100%;background:var(--accent);border-radius:0 4px 4px 0}
+.bv{font-family:var(--f-mono);font-size:.8rem;color:var(--muted);white-space:nowrap}
 .pcard.gone{opacity:.68}
 .thumb{flex:0 0 64px;width:64px;height:64px;border-radius:8px;background:var(--surface2);border:1px solid var(--line);display:grid;place-items:center;color:var(--muted);overflow:hidden}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
@@ -285,7 +296,7 @@ pre.tpl{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--surface2);b
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <script>
-const APP_VERSION = "0.2";
+const APP_VERSION = "0.3";
 const UPDATED = "2026-10-26";
 const SCHEMA = 2;
 
@@ -306,6 +317,7 @@ const label = (list, v) => { const f = list.find(x => x[0] === v); return f ? f[
 const keysOf = list => list.map(x => x[0]);
 
 const CHANGELOG = [
+  ["0.3", "2026-10-26", "統計分頁（擁有數、穿香次數、穿最多次與每次成本、最常穿的香調家族與香材、每年花費，可切換全部／今年／近 90 天）、願望清單欄位（想買的目標價格、在哪裡試過）。"],
   ["0.2", "2026-10-26", "穿香日誌（收藏卡片一鍵「今天噴」、日誌分頁可補場合／噴幾下／持香／心得）、今天噴什麼（依季節與時段挑久沒噴的）、季節月份設定、最近穿著排序、離開未儲存的表單前先確認。"],
   ["0.1", "2026-10-26", "第一版：收藏清單、新增／編輯／刪除（可復原）、照片、搜尋篩選排序、貼上自動填入、匯出匯入備份、主題切換。"]
 ];
@@ -333,6 +345,7 @@ function uid(){ try{ if(typeof crypto !== "undefined" && crypto.randomUUID) retu
 function pad(n){ return String(n).padStart(2,"0"); }
 function ymd(d){ return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()); }
 function fmtNum(n){ return (Math.round(n*100)/100).toString(); }
+function money(n){ return "NT$ " + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
 function norm(s){ return String(s == null ? "" : s).normalize("NFKC").toLowerCase(); }
 function str(v, max){
   if(v == null) return "";
@@ -392,6 +405,8 @@ function normalizeItem(raw){
     longevity: pick(r.longevity, STRENGTH),
     sillage: pick(r.sillage, STRENGTH),
     memo: str(r.memo, 3000),
+    targetPrice: num(r.targetPrice, 0, 100000000),
+    triedAt: str(r.triedAt, 120),
     hasPhoto: r.hasPhoto === true
   };
   if(it.updated < it.created) it.updated = it.created;
@@ -627,6 +642,42 @@ function pickCandidates(items, wi, season, time, today){
     return (la < lb ? -1 : la > lb ? 1 : 0) || cmpStr(a.brand, b.brand) || cmpStr(a.name, b.name);
   });
 }
+function periodStart(period, today){
+  if(period === "year") return today.slice(0, 4) + "-01-01";
+  if(period === "90"){ const d = new Date(today + "T00:00:00"); d.setDate(d.getDate() - 89); return ymd(d); }
+  return "";
+}
+function computeStats(items, wears, period, today){
+  const from = periodStart(period, today);
+  const ws = from ? wears.filter(w => w.date >= from && w.date <= today) : wears;
+  const map = new Map(items.map(x => [x.id, x]));
+  const all = wearIndex(wears), idx = wearIndex(ws);
+  const top = [...idx.entries()].map(([id, v]) => ({ it: map.get(id), count: v.count, last: v.last })).filter(x => x.it)
+    .sort((a, b) => (b.count - a.count) || (a.last < b.last ? 1 : a.last > b.last ? -1 : 0));
+  top.forEach(x => { const c = (all.get(x.it.id) || {}).count || 0; x.cpw = x.it.price > 0 && c ? Math.round(x.it.price / c) : null; });
+  const fam = new Map(), notes = new Map();
+  ws.forEach(w => {
+    const it = map.get(w.itemId); if(!it) return;
+    it.families.forEach(f => fam.set(f, (fam.get(f) || 0) + 1));
+    const seen = new Set();
+    allNotes(it).forEach(t => { const k = norm(t); if(seen.has(k)) return; seen.add(k); const e = notes.get(k); if(e) e.n++; else notes.set(k, { t, n: 1 }); });
+  });
+  const spend = new Map();
+  items.forEach(it => {
+    if(!(it.price > 0) || it.status === "want") return;
+    const y = it.buyDate ? it.buyDate.slice(0, 4) : "";
+    const e = spend.get(y) || { year: y, n: 0, sum: 0 }; e.n++; e.sum += it.price; spend.set(y, e);
+  });
+  const years = [...spend.values()].sort((a, b) => !a.year ? 1 : !b.year ? -1 : (a.year < b.year ? 1 : -1));
+  const thisYear = (spend.get(today.slice(0, 4)) || { sum: 0 }).sum;
+  return {
+    own: items.filter(x => x.status === "own").length, decant: items.filter(x => x.status === "decant").length, want: items.filter(x => x.status === "want").length,
+    wearCount: ws.length, wornItems: idx.size, top,
+    fams: [...fam.entries()].map(([k, n]) => ({ k, n })).sort((a, b) => b.n - a.n || keysOf(FAMS).indexOf(a.k) - keysOf(FAMS).indexOf(b.k)),
+    notes: [...notes.values()].sort((a, b) => b.n - a.n || cmpStr(a.t, b.t)).slice(0, 10),
+    years, thisYear, totalSpend: years.reduce((s, y) => s + y.sum, 0)
+  };
+}
 function brandSuggestions(items){
   const m = new Map();
   items.forEach(it => { const k = norm(it.brand); if(k && !m.has(k)) m.set(k, it.brand); });
@@ -744,6 +795,7 @@ function draftFrom(it){
   d.year = it.year == null ? "" : String(it.year);
   d.volume = it.volume == null ? "" : String(it.volume);
   d.price = it.price == null ? "" : String(it.price);
+  d.targetPrice = it.targetPrice == null ? "" : String(it.targetPrice);
   d._photoBlob = null; d._photoRemove = false;
   return d;
 }
@@ -758,7 +810,7 @@ const UI = {
   imp: null, impConfirm: false, expPhotos: true, theme: "auto",
   loadError: "", readOnly: false, pendingDel: null, listY: 0, busy: false,
   wdraft: null, wIsNew: false, wErr: false, snap: "", undoFn: null,
-  logLimit: 100, pickOffset: 0, pickSeason: "", pickTime: "", _wi: null, _wiSrc: null
+  logLimit: 100, statPeriod: "all", statAll: false, pickOffset: 0, pickSeason: "", pickTime: "", _wi: null, _wiSrc: null
 };
 function WI(){ if(UI._wiSrc !== S.wears){ UI._wiSrc = S.wears; UI._wi = wearIndex(S.wears); } return UI._wi; }
 function nowTime(){ const h = new Date().getHours(); return h >= 6 && h < 18 ? "day" : "night"; }
@@ -766,7 +818,7 @@ function daysSince(ms, now){ return ms ? Math.max(0, Math.floor(((now || Date.no
 
 /* ===== 畫面（純函式：只讀 S／UI，回傳字串） ===== */
 function renderTabs(){
-  return [["coll","收藏"],["log","日誌"],["pick","今天噴什麼"],["settings","設定"]].map(([k, l]) =>
+  return [["coll","收藏"],["log","日誌"],["pick","今天噴什麼"],["stats","統計"],["settings","設定"]].map(([k, l]) =>
     `<button class="tab" type="button" role="tab" data-act="tab" data-tab="${k}" aria-selected="${UI.tab === k}">${l}</button>`).join("");
 }
 function chip(act, v, text, on, n){
@@ -802,6 +854,7 @@ function renderCard(it, wi, today){
     (it.conc ? `<span class="route">${esc(label(CONC, it.conc))}</span>` : "") +
     (it.volume != null ? `<span class="count">${fmtNum(it.volume)} mL</span>` : "") +
     (it.level === "low" ? `<span class="flag warn">快用完</span>` : "") +
+    (it.status === "want" && it.targetPrice != null ? `<span class="count">目標 ${money(it.targetPrice)}</span>` : "") +
     (it.rating ? `<span class="stars" aria-label="評分 ${it.rating}／5">${"★".repeat(it.rating)}${"☆".repeat(5 - it.rating)}</span>` : "") +
     `</span>${sub ? `<span class="pfam">${esc(sub)}</span>` : ""}</span></button>${wearBtn(it, w, today)}</div>`;
 }
@@ -870,6 +923,9 @@ function renderForm(){
     <div><div class="lbl">濃度</div><div class="mt-s">${seg("conc", CONC, d.conc, "濃度", true)}</div></div>
     <div class="grid2">${txtField("f-perfumer", "perfumer", "調香師")}${txtField("f-year", "year", "年份", { mode: "numeric", ph: "例如 2011" })}</div>
   </section>
+  ${d.status === "want" || d.targetPrice || d.triedAt ? `<section class="card stack"><h2>願望清單</h2>
+    <div class="grid2">${txtField("f-targetPrice", "targetPrice", "目標價格", { unit: "NT$", mode: "numeric" })}${txtField("f-triedAt", "triedAt", "在哪裡試過", { ph: "例如 新光三越專櫃" })}</div>
+    <p class="hint" style="margin:0">其他想法可以寫在最下面的備註。</p></section>` : ""}
   <section class="card"><h2>照片</h2>
     <div class="photo"><div class="pv">${photo}</div><div class="toolbar">
       <label class="btn filebtn">${hasPhoto ? "換一張" : "拍照／選照片"}<input type="file" accept="image/*" data-file="photo"></label>
@@ -1013,12 +1069,41 @@ function renderPick(){
   }).join("");
   return renderNotices() + head + `<div class="listhead mt"><span class="count">符合 ${list.length} 款，優先列出很久沒噴的</span>${list.length > 3 ? `<button class="btn" type="button" data-act="pick-more">換一批</button>` : ""}</div><div class="plist">${cards}</div>`;
 }
+function bars(rows, max){
+  return `<div class="bars">${rows.map(r => `<div class="barrow"><span class="bl">${esc(r.label)}</span><span class="bar" role="img" aria-label="${esc(r.label)} ${esc(r.value)}"><span style="width:${max ? Math.max(2, Math.round(r.n / max * 100)) : 0}%"></span></span><span class="bv">${esc(r.value)}</span></div>`).join("")}</div>`;
+}
+function renderStats(){
+  const pLabel = { all: "全部時間", year: "今年", "90": "近 90 天" };
+  if(!pLabel[UI.statPeriod]) UI.statPeriod = "all";
+  const today = todayStr(), st = computeStats(S.items, S.wears, UI.statPeriod, today);
+  const filt = `<div class="chips">${["all", "year", "90"].map(k => chip("stat-period", k, pLabel[k], UI.statPeriod === k)).join("")}</div>`;
+  const tiles = `<div class="tiles">
+    <div class="rsum"><div class="small">擁有</div><div class="big">${st.own + st.decant} <span class="small">款</span></div><div class="small">正裝 ${st.own}・分裝 ${st.decant}${st.want ? `・想買 ${st.want}` : ""}</div></div>
+    <div class="rsum"><div class="small">穿香（${pLabel[UI.statPeriod]}）</div><div class="big">${st.wearCount} <span class="small">次</span></div><div class="small">${st.wornItems} 款香水</div></div>
+    <div class="rsum"><div class="small">今年花費</div><div class="big">${money(st.thisYear)}</div><div class="small">累計 ${money(st.totalSpend)}</div></div></div>`;
+  const noWear = `<p class="hint" style="margin:0">${S.wears.length ? "這段期間沒有穿香紀錄。" : "還沒有穿香紀錄。在收藏清單按「今天噴」就會開始累積。"}</p>`;
+  const topRows = UI.statAll ? st.top : st.top.slice(0, 10);
+  const topT = st.top.length ? `<div class="tbl-wrap"><table><thead><tr><th>香水</th><th class="num">次數</th><th class="num">上次</th><th class="num">每次成本</th></tr></thead><tbody>${topRows.map(x =>
+    `<tr><td><button class="rowbtn" type="button" data-act="edit" data-id="${esc(x.it.id)}"><span class="muted">${esc(x.it.brand)}</span><br>${esc(x.it.name)}</button></td><td class="num">${x.count}</td><td class="num">${esc(x.last.slice(5).replace("-", "/"))}</td><td class="num">${x.cpw != null ? money(x.cpw) : "—"}</td></tr>`).join("")}</tbody></table></div>` +
+    (st.top.length > 10 ? `<div class="mt"><button class="linkbtn" type="button" data-act="stat-all">${UI.statAll ? "只看前 10 名" : `顯示全部 ${st.top.length} 款`}</button></div>` : "") +
+    `<p class="hint">每次成本＝購買價格 ÷ 全部穿著次數（不受上方期間影響）；沒填價格顯示「—」。</p>` : noWear;
+  const famMax = st.fams.length ? st.fams[0].n : 0, noteMax = st.notes.length ? st.notes[0].n : 0;
+  const famB = st.fams.length ? bars(st.fams.map(f => ({ label: label(FAMS, f.k), n: f.n, value: f.n + " 次" })), famMax) + `<p class="hint">依穿著次數計算；一瓶有兩個家族時兩邊各算一次。</p>` : (st.wearCount ? `<p class="hint" style="margin:0">穿過的香水都還沒選香調家族。</p>` : noWear);
+  const noteB = st.notes.length ? bars(st.notes.map(x => ({ label: x.t, n: x.n, value: x.n + " 次" })), noteMax) : (st.wearCount ? `<p class="hint" style="margin:0">穿過的香水都還沒填香調。</p>` : noWear);
+  const yMax = Math.max(0, ...st.years.map(y => y.sum));
+  const spendB = st.years.length ? bars(st.years.map(y => ({ label: y.year ? y.year + " 年" : "未填日期", n: y.sum, value: `${money(y.sum)}・${y.n} 瓶` })), yMax) + `<p class="hint">加總有填價格、狀態不是「想買」的香水，依購買日期的年份分組。</p>` : `<p class="hint" style="margin:0">在香水的「容量與購買」填上價格和購買日期，這裡就會統計每年花費。</p>`;
+  return renderNotices() + `<div class="stack">${filt}${tiles}
+    <section class="card"><h2>穿最多次</h2>${topT}</section>
+    <div class="grid2 statgrid"><section class="card"><h2>最常穿的香調家族</h2>${famB}</section><section class="card"><h2>最常穿的香材（前 10）</h2>${noteB}</section></div>
+    <section class="card"><h2>每年花費</h2>${spendB}</section></div>`;
+}
 function renderMain(){
   if(UI.tab === "settings") return renderSettings();
   if(UI.view === "form" && UI.draft) return renderForm();
   if(UI.view === "wear" && UI.wdraft) return renderWearForm();
   if(UI.tab === "log") return renderLog();
   if(UI.tab === "pick") return renderPick();
+  if(UI.tab === "stats") return renderStats();
   return renderCollection();
 }
 
@@ -1341,6 +1426,8 @@ function onClick(e){
     case "wear-del": deleteWear(); break;
     case "goto-log": hideToast(); if(UI.view === "list" || confirmLeave()){ closeForm(); UI.tab = "log"; render(); window.scrollTo(0, 0); } break;
     case "log-more": UI.logLimit += 200; render(); break;
+    case "stat-period": UI.statPeriod = v; render(); break;
+    case "stat-all": UI.statAll = !UI.statAll; render(); break;
     case "pick-season": UI.pickSeason = v; UI.pickOffset = 0; render(); break;
     case "pick-time": UI.pickTime = v; UI.pickOffset = 0; render(); break;
     case "pick-more": UI.pickOffset += 3; render(); break;
@@ -1409,7 +1496,7 @@ function onChange(e){
     return;
   }
   if(t.dataset.w && UI.wdraft && (t.type === "radio" || t.tagName === "SELECT")){ if(UI.wdraft[t.dataset.w] === t.value) return; UI.wdraft[t.dataset.w] = t.value; if(t.dataset.w === "itemId"){ UI.wErr = false; t.classList.remove("err"); } return; }
-  if(t.type === "radio" && t.dataset.f && UI.draft){ if(UI.draft[t.dataset.f] === t.value) return; UI.draft[t.dataset.f] = t.value; }
+  if(t.type === "radio" && t.dataset.f && UI.draft){ if(UI.draft[t.dataset.f] === t.value) return; const was = UI.draft[t.dataset.f]; UI.draft[t.dataset.f] = t.value; if(t.dataset.f === "status" && (was === "want" || t.value === "want")){ const y = window.scrollY; render(); window.scrollTo(0, y); } }
 }
 function onKey(e){
   const t = e.target;

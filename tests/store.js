@@ -50,6 +50,25 @@ const T = suite("store");
     const oldFile = run(`validateImport(JSON.stringify({ app:"perfume-log", schema:1, items:[{id:"a",brand:"A",name:"B"}] }))`);
     T.eq([oldFile.items.length, oldFile.wears.length], [1, 0], "v0.1 的備份檔可以匯入");
   }
+  // --- 統計與願望清單 ---
+  {
+    const { run } = load();
+    T.eq([run("money(0)"), run("money(6800)"), run("money(1234567.4)")], ["NT$ 0", "NT$ 6,800", "NT$ 1,234,567"], "金額格式");
+    const st = run(`(() => {
+      const it = (id, o) => normalizeItem(Object.assign({ id, brand: "B", name: id }, o));
+      const items = [it("a", { status: "own", price: 6000, buyDate: "2026-03-01", families: ["woody","leather"], notes: { top: ["檀香"], base: ["檀香","皮革"] } }),
+        it("b", { status: "decant", price: 900, buyDate: "2025-12-01", families: ["floral"] }),
+        it("c", { status: "want", price: 5000, targetPrice: "4,200", triedAt: "專櫃" }), it("d", { status: "gone", price: 1000 })];
+      const W = (itemId, date) => normalizeWear({ itemId, date });
+      const wears = [W("a","2026-10-20"), W("a","2026-10-01"), W("a","2025-05-01"), W("b","2026-09-30"), W("ghost","2026-10-01")];
+      const all = computeStats(items, wears, "all", "2026-10-26"), yr = computeStats(items, wears, "year", "2026-10-26"), d90 = computeStats(items, wears, "90", "2026-10-26");
+      return { own: all.own, decant: all.decant, want: all.want, wc: [all.wearCount, yr.wearCount, d90.wearCount], top: all.top.map(x => [x.it.id, x.count, x.cpw]), yrTop: yr.top.map(x => [x.it.id, x.count, x.cpw]),
+        fams: all.fams, notes: all.notes, years: all.years.map(y => [y.year, y.n, y.sum]), thisYear: all.thisYear, total: all.totalSpend, tp: items[2].targetPrice, ta: items[2].triedAt };
+    })()`);
+    T.eq(st, { own: 1, decant: 1, want: 1, wc: [5, 4, 4], top: [["a", 3, 2000], ["b", 1, 900]], yrTop: [["a", 2, 2000], ["b", 1, 900]],
+      fams: [{ k: "woody", n: 3 }, { k: "leather", n: 3 }, { k: "floral", n: 1 }], notes: [{ t: "皮革", n: 3 }, { t: "檀香", n: 3 }],
+      years: [["2026", 1, 6000], ["2025", 1, 900], ["", 1, 1000]], thisYear: 6000, total: 7900, tp: 4200, ta: "專櫃" }, "統計計算（期間、每次成本、家族、香材、每年花費、想買不計）");
+  }
   // --- 寫入失敗 ---
   {
     const ls = fakeStorage(); ls.failWrites = true;

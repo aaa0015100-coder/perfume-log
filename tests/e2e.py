@@ -119,6 +119,10 @@ def overview(browser, url, base, W, scheme, shots, tag):
     check(page, f"{where} 今天噴什麼")
     if shots and W == 390:
         page.screenshot(path=os.path.join(shots, f"{tag}-pick.png"))
+    page.click("[data-act=tab][data-tab=stats]")
+    check(page, f"{where} 統計")
+    if shots and W in (390, 1280):
+        page.screenshot(path=os.path.join(shots, f"{tag}-stats.png"), full_page=True)
     page.click("[data-act=tab][data-tab=settings]")
     check(page, f"{where} 設定")
     if shots and W == 390 and scheme == "light":
@@ -215,6 +219,7 @@ def flow(browser, url, base, tmp):
     # 匯入壞檔：現有資料不動
     bad = os.path.join(tmp, "bad.json"); open(bad, "w").write("{not json")
     page.set_input_files("[data-file=import]", bad)
+    page.wait_for_selector("text=現有資料沒有變動", timeout=5000)
     ok(page.is_visible("text=現有資料沒有變動"), "壞檔沒有報錯")
     ok(items_of(page) == before, "匯入壞檔改到資料")
 
@@ -224,7 +229,9 @@ def flow(browser, url, base, tmp):
     ok(page.is_visible("text=還沒有香水"), "清空後不是空狀態")
     page.click("[data-act=tab][data-tab=settings]")
     page.set_input_files("[data-file=import]", bk)
-    ok(page.is_visible("text=檔案內有 1 款（含 1 張照片）"), "匯入預覽不對")
+    page.wait_for_selector(".note:has-text('檔案內有')", timeout=5000)
+    pv = page.locator(".note:has-text('檔案內有')").inner_text()
+    ok("檔案內有 1 款（含 1 張照片）" in pv, f"匯入預覽不對：{pv[:80]}")
     page.click("[data-act=imp-merge]")
     page.wait_for_selector("text=已合併")
     after = items_of(page)
@@ -235,6 +242,7 @@ def flow(browser, url, base, tmp):
     # 取代（要確認）
     page.click("[data-act=tab][data-tab=settings]")
     page.set_input_files("[data-file=import]", bk)
+    page.wait_for_selector("[data-act=imp-replace]", timeout=5000)
     page.click("[data-act=imp-replace]")
     ok(page.is_visible("text=取代會刪除目前的 1 款"), "取代前沒有確認")
     page.click("[data-act=imp-replace-ok]")
@@ -380,6 +388,26 @@ def flow_log(browser, url, base):
     page.click("[data-act=months-reset]")
     ok(items_and_wears(page)["settings"]["seasonMonths"][8] == "autumn", "季節月份恢復預設失敗")
     check(page, "390 設定（季節）")
+    # 統計
+    page.click("[data-act=tab][data-tab=stats]")
+    ok(page.is_visible(".rsum >> text=正裝 1・分裝 1・想買 1"), "統計擁有數不對")
+    ok(page.locator("tbody tr").count() == 2, "穿最多次表格列數不對")
+    page.click("[data-act=stat-period][data-v='90']")
+    ok(page.get_attribute("[data-act=stat-period][data-v='90']", "aria-pressed") == "true", "統計期間切換沒作用")
+    check(page, "390 統計")
+    # 願望清單欄位：改成想買才出現
+    page.click("[data-act=tab][data-tab=coll]")
+    page.click(".pmain:has-text('No.5')")
+    ok(page.is_visible("text=願望清單"), "想買的香水沒有願望清單區塊")
+    page.fill("#f-targetPrice", "4,200")
+    page.fill("#f-triedAt", "新光三越")
+    page.click(".seg label:has-text('擁有')")
+    ok(page.is_visible("text=願望清單"), "已填目標價格時切換狀態不該隱藏")
+    page.click(".seg label:has-text('想買')")
+    page.click("[data-act=save]")
+    ok(page.is_visible(".pcard:has-text('No.5') >> text=目標 NT$ 4,200"), "卡片沒有顯示目標價格")
+    c = [x for x in items_and_wears(page)["items"] if x["id"] == "c"][0]
+    ok(c["targetPrice"] == 4200 and c["triedAt"] == "新光三越", f"願望清單欄位沒存 {c}")
     ok(not errs, f"日誌流程：console 錯誤 {errs[:3]}")
     ok(not reqs, f"日誌流程：有外部網路請求 {reqs[:3]}")
     ctx.close()

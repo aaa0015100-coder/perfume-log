@@ -640,6 +640,91 @@ def flow_v12(browser, url, base):
     ctx.close()
 
 
+def flow_v13(browser, url, base):
+    import datetime
+    ctx = browser.new_context(viewport={"width": 390, "height": 860})
+    page = ctx.new_page()
+    errs, reqs = [], []
+    watch(page, errs, reqs, base)
+    page.goto(url)
+    today = datetime.date.today().isoformat()
+    items = [{"id": "a", "brand": "Le Labo", "name": "Santal 33", "status": "own", "created": 3, "updated": 3},
+             {"id": "b", "brand": "Byredo", "name": "Gypsy", "status": "own", "created": 2, "updated": 2},
+             {"id": "c", "brand": "Diptyque", "name": "Do Son", "status": "tried", "created": 1, "updated": 1}]
+    page.evaluate("d => localStorage.setItem('perfume-log-data', JSON.stringify({ schema: 3, items: d, wears: [], settings: { lastBackup: Date.now() } }))", items)
+    page.reload()
+    # 標籤
+    page.click(".pmain:has-text('Santal 33')")
+    page.fill("[data-tagin=tags]", "夏日清單,")
+    page.click("[data-act=save]")
+    page.click(".pmain:has-text('Gypsy')")
+    page.fill("[data-tagin=tags]", "送禮")
+    page.click("[data-act=save]")  # 沒按加入也要存
+    d = items_and_wears(page)
+    ok([x["tags"] for x in d["items"] if x["id"] in ("a", "b")] == [["夏日清單"], ["送禮"]], f"標籤沒存 {[x.get('tags') for x in d['items']]}")
+    page.click("summary:has-text('更多篩選')")
+    page.click("[data-act=ftag][data-v='送禮']")
+    ok(page.locator(".pcard").count() == 1, "標籤篩選不對")
+    page.click("[data-act=fclear] >> nth=0")
+    page.fill("#q", "夏日")
+    ok(page.locator(".pcard").count() == 1, "搜尋找不到標籤")
+    page.fill("#q", "")
+    # 相簿
+    page.click("[data-act=coll-view][data-v=grid]")
+    ok(page.locator(".gcard").count() == 3 and page.locator(".pcard").count() == 0, "相簿模式不對")
+    check(page, "390 相簿")
+    page.screenshot(path=os.path.join(tempfile.gettempdir(), "grid.png"))
+    page.click(".gcard:has-text('Do Son')")
+    # 試香：試過的表單預設展開
+    ok(page.locator("details[data-open=trials][open]").count() == 1, "試過的香水試香區沒展開")
+    page.click("[data-act=trial-add]")
+    page.fill("#tr-place-0", "新光三越")
+    page.click(".seg input[data-tf=feel][value=good] >> xpath=..")
+    page.fill("#tr-price-0", "5,200")
+    page.click("[data-act=trial-add]")
+    page.fill("#tr-date-0", "2026-01-01")
+    page.fill("#tr-place-0", "朋友家")
+    check(page, "390 試香表單")
+    page.click("[data-act=save]")
+    c = [x for x in items_and_wears(page)["items"] if x["id"] == "c"][0]
+    ok(len(c["trials"]) == 2 and c["trials"][0]["place"] == "新光三越" and c["trials"][0]["price"] == 5200 and c["trials"][0]["feel"] == "good", f"試香沒存 {c['trials']}")
+    ok(c["triedAt"] == "新光三越", f"沒自動帶入在哪裡試過 {c.get('triedAt')}")
+    # 疊香
+    open_log(page)
+    page.click("[data-act=wear-new]")
+    page.select_option("#w-item", "a")
+    page.click("[data-act=wx-add]")
+    page.select_option("[data-wx='0']", "b")
+    page.click(".seg input[data-w=feel][value=good] >> xpath=..")
+    page.fill("#w-memo", "疊起來很好")
+    page.click("[data-act=wear-save]")
+    ws = items_and_wears(page)["wears"]
+    ok(len(ws) == 2 and ws[0]["layerId"] and ws[0]["layerId"] == ws[1]["layerId"] and all(w["memo"] == "疊起來很好" and w["feel"] == "good" for w in ws), f"疊香沒存成一組 {ws}")
+    ok(page.locator(".wcard").count() == 1 and page.is_visible(".wcard >> text=Santal 33 ＋ Gypsy"), "疊香沒顯示成一組")
+    # 編輯：移除疊香 → 剩一筆、組合解散
+    page.click(".wcard")
+    ok(page.locator("[data-wx]").count() == 1, "編輯疊香沒帶出另一瓶")
+    page.fill("#w-memo", "改心得")
+    page.click("[data-act=wear-save]")
+    ws = items_and_wears(page)["wears"]
+    ok(len(ws) == 2 and all(w["memo"] == "改心得" for w in ws), "編輯後共用欄位沒同步")
+    page.click(".wcard")
+    page.click("[data-act=wx-rm]")
+    page.click("[data-act=wear-save]")
+    ws = items_and_wears(page)["wears"]
+    ok(len(ws) == 1 and ws[0]["layerId"] == "", f"移除疊香後不對 {ws}")
+    page.click("[data-act=tab][data-tab=log]")
+    page.click("[data-act=log-view][data-v=cal]")
+    ok(page.locator(f".cday[data-v='{today}'] .cdot").count() == 1, "月曆點數不對")
+    # 統計
+    page.click("[data-act=tab][data-tab=stats]")
+    ok(page.is_visible("text=各品牌（擁有＋分裝，前 10）") and page.is_visible("text=每月花費（近 12 個月）"), "統計新區塊沒出現")
+    check(page, "390 統計 v1.3")
+    ok(not errs, f"v1.3 流程：console 錯誤 {errs[:3]}")
+    ok(not reqs, f"v1.3 流程：有外部網路請求 {reqs[:3]}")
+    ctx.close()
+
+
 def items_and_wears(page):
     return page.evaluate("() => JSON.parse(localStorage.getItem('perfume-log-data'))")
 
@@ -668,6 +753,7 @@ def main():
             flow(b, url, base, tmp)
             flow_log(b, url, base)
             flow_v12(b, url, base)
+            flow_v13(b, url, base)
             flow_calendar(b, url, base, "light")
             flow_calendar(b, url, base, "dark")
             if widths:

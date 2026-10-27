@@ -115,6 +115,19 @@ const T = suite("store");
     const st2 = run(`(() => { const items = [normalizeItem({ id: "a", brand: "x", name: "y", status: "own" })]; const W = f => normalizeWear({ itemId: "a", date: "2026-10-01", feel: f }); return computeStats(items, [W("good"), W("good"), W("bad"), W("")], "all", "2026-10-27").top.map(x => [x.good, x.rated]); })()`);
     T.eq(st2, [[2, 3]], "喜歡率計算");
   }
+  // --- v1.3：標籤、試香、疊香、統計 ---
+  {
+    const { run } = load();
+    const it = run(`normalizeItem({ brand: "a", name: "b", tags: ["夏日", " 夏日 ", "", 5, "<x>"], trials: [{ date: "2026-05-01", place: "專櫃", feel: "good", price: "4,500" }, { date: "bad", feel: "zz" }, null] })`);
+    T.eq([it.tags, it.trials.length, it.trials[0].price, it.trials[0].feel, it.trials[1].feel, /^\d{4}-/.test(it.trials[1].date)], [["夏日", "5", "<x>"], 2, 4500, "good", "", true], "標籤與試香正規化");
+    T.eq(run(`(() => { const a = normalizeItem({ brand: "a", name: "b", tags: ["x"], trials: [{ place: "p" }] }); const c = cloneItem(a); c.tags.push("y"); c.trials[0].place = "q"; return [a.tags.length, a.trials[0].place]; })()`), [1, "p"], "cloneItem 深複製標籤與試香");
+    T.eq(run(`(() => { const items = [normalizeItem({ id: "1", brand: "A", name: "x", tags: ["夏日"] }), normalizeItem({ id: "2", brand: "B", name: "y", tags: ["送禮"] })]; return [filterItems(items, Object.assign(emptyFilter(), { tags: ["送禮"] })).map(x => x.id), filterItems(items, Object.assign(emptyFilter(), { q: "夏日" })).map(x => x.id)]; })()`), [["2"], ["1"]], "標籤篩選與搜尋");
+    T.eq(run(`groupWears([{ id: 1, layerId: "L", created: 5 }, { id: 2, created: 1 }, { id: 3, layerId: "L", created: 2 }, { id: 4, layerId: "M", created: 1 }]).map(g => g.map(w => w.id))`), [[3, 1], [2], [4]], "疊香分組（組內依新增順序）");
+    const st = run(`(() => { const it = (id, o) => normalizeItem(Object.assign({ id, name: id }, o));
+      const items = [it("a", { brand: "Le Labo", status: "own", price: 6000, buyDate: "2026-10-03" }), it("b", { brand: "le labo", status: "decant", price: 500, buyDate: "2026-10-20" }), it("c", { brand: "Byredo", status: "own", price: 3000, buyDate: "2025-12-01" }), it("d", { brand: "Byredo", status: "want", price: 9999, buyDate: "2026-10-01" }), it("e", { brand: "Old", status: "own", price: 100, buyDate: "2025-01-01" })];
+      const r = computeStats(items, [], "all", "2026-10-27"); return { brands: r.brands.map(b => [b.t, b.n]), months: r.monthly.length, first: r.monthly[0], last: r.monthly[11], dec: r.monthly.find(m => m.ym === "2025-12").sum }; })()`);
+    T.eq(st, { brands: [["Le Labo", 2], ["Byredo", 1], ["Old", 1]], months: 12, first: { ym: "2025-11", sum: 0 }, last: { ym: "2026-10", sum: 6500 }, dec: 3000 }, "各品牌（不分大小寫）與每月花費");
+  }
   // --- 寫入失敗 ---
   {
     const ls = fakeStorage(); ls.failWrites = true;

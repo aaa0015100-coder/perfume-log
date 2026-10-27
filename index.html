@@ -18,7 +18,7 @@
   --ok:#1d7344; --ok-bg:#def2e6; --info:#2a5a86; --info-bg:#e3edf7;
   --f-body:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
   --f-mono:var(--f-body);
-  --f-serif:ui-serif,"New York","Songti TC","Noto Serif TC","Noto Serif CJK TC","PMingLiU",serif;
+  --f-serif:var(--f-body);
   --c1:#2a78d6; --c2:#eb6834; --c3:#1baf7a; --c4:#eda100; --c5:#e87ba4; --c6:#6250d6; --c0:#8a8178;
   --c1-ink:#ffffff; --c2-ink:#1a120c; --c3-ink:#1a120c; --c4-ink:#1a120c; --c5-ink:#1a120c; --c6-ink:#ffffff; --c0-ink:#1a120c;
   --h1:#c8a27c; --h2:#9a6b45; --h3:#6b4428;
@@ -344,7 +344,7 @@ body{margin:0;font-variant-numeric:tabular-nums;letter-spacing:.01em}
 .wrap{padding-block:18px 48px}
 .appbar{background:var(--bar);color:var(--bar-ink);padding-top:env(safe-area-inset-top,0px)}
 .appbar-in{max-width:1260px;margin:0 auto;padding:14px max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));display:flex;align-items:baseline;justify-content:space-between;gap:12px}
-.appbar h1{font-family:var(--f-serif);font-size:1.4rem;font-weight:600;letter-spacing:.06em}
+.appbar h1{font-family:var(--f-serif);font-size:1.3rem;font-weight:700;letter-spacing:.04em}
 .appbar .ver{color:var(--bar-muted);font-size:.72rem;font-family:var(--f-body)}
 .appbar .tabs{max-width:1260px;margin:0 auto;padding:0 max(10px,env(safe-area-inset-right,0px)) 0 max(10px,env(safe-area-inset-left,0px));border:0;gap:2px}
 .appbar .tab{display:flex;align-items:center;gap:7px;color:var(--bar-muted);border-bottom:2px solid transparent;padding:9px 12px 11px;font-size:.9rem}
@@ -368,9 +368,9 @@ body{margin:0;font-variant-numeric:tabular-nums;letter-spacing:.01em}
 @media (max-width:360px){.appbar .tab{font-size:.6rem}}
 @media (max-width:919px){.statusrow{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}.statusrow .chip{flex:0 0 auto;white-space:nowrap}}
 .card{background:var(--surface);border:0;border-radius:14px;padding:16px}
-.card h2,.sec-title,.toolbar h2{font-family:var(--f-serif);text-transform:none;letter-spacing:.03em;color:var(--ink);font-size:1.04rem;font-weight:600}
+.card h2,.sec-title,.toolbar h2{font-family:var(--f-serif);text-transform:none;letter-spacing:.02em;color:var(--ink);font-size:1rem;font-weight:700}
 .sec-title{margin:20px 2px 8px}
-details.card>summary{font-family:var(--f-serif);font-size:1.04rem;color:var(--ink);font-weight:600}
+details.card>summary{font-family:var(--f-serif);font-size:1rem;color:var(--ink);font-weight:700}
 details.mdr summary{color:var(--accent)}
 .chip,.seg label{border-radius:8px;background:transparent;padding:5px 11px}
 .chip .n{font-family:var(--f-body);margin-right:5px}
@@ -382,7 +382,7 @@ details.mdr summary{color:var(--accent)}
 .pcard{background:none;border:0;border-radius:0;border-bottom:1px solid var(--line);padding:14px 0;gap:12px}
 .pcard:last-child{border-bottom:0}
 .thumb{flex-basis:56px;width:56px;height:56px;border:0;border-radius:6px}
-.pname{font-family:var(--f-serif);font-size:1.08rem;font-weight:600;letter-spacing:.01em;line-height:1.35}
+.pname{font-family:var(--f-serif);font-size:1.02rem;font-weight:600;letter-spacing:0;line-height:1.35}
 .pbrand{font-size:.78rem}
 .pmeta{gap:3px 12px;margin-top:5px;font-size:.8rem;color:var(--muted)}
 .pmeta .tier{background:none;border:0;padding:0;font-size:.8rem;font-weight:600;color:var(--muted);border-radius:0}
@@ -400,10 +400,10 @@ details.mdr summary{color:var(--accent)}
 .glist{gap:14px 10px}
 .gcard{background:none;border:0;padding:0;border-radius:0}
 .gimg{border-radius:8px;background:var(--surface)}
-.gname{font-family:var(--f-serif);font-size:.86rem}
+.gname{font-family:var(--f-serif);font-size:.82rem}
 .tiles{background:var(--surface);border-radius:14px;padding:14px 16px;gap:14px}
 .tiles .rsum{background:none;padding:0;border-radius:0}
-.rsum .big{font-family:var(--f-serif);font-size:1.55rem;font-weight:600;line-height:1.3}
+.rsum .big{font-family:var(--f-serif);font-size:1.5rem;font-weight:700;line-height:1.3}
 .rsum .small{font-size:.78rem}
 .cal{gap:2px}
 .cday{border:0;background:none;border-radius:10px;min-height:54px}
@@ -431,7 +431,7 @@ th{letter-spacing:0}
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <script>
-const APP_VERSION = "1.4";
+const APP_VERSION = "1.5";
 const UPDATED = "2026-10-27";
 const SCHEMA = 3;
 
@@ -457,6 +457,7 @@ const label = (list, v) => { const f = list.find(x => x[0] === v); return f ? f[
 const keysOf = list => list.map(x => x[0]);
 
 const CHANGELOG = [
+  ["1.5", "2026-10-27", "字體改回系統黑體（蘋方／San Francisco），拿掉襯線字；用字重和大小區分標題與內文。"],
   ["1.4", "2026-10-27", "改版外觀：胡桃木頂欄、手機底部分頁列、香水名用襯線字、清單改成無框的列、拿掉表情符號與多餘提示。"],
   ["1.3", "2026-10-27", "疊香紀錄（一筆日誌可加 1–2 瓶）、收藏相簿模式、自訂標籤（可篩選、可搜尋）、統計新增各品牌與每月花費、試香紀錄（試過／想買可記多次試香，自動帶入「在哪裡試過」）。"],
   ["1.2", "2026-10-27", "一鍵分享備份（iPhone 可存到 iCloud／LINE）、剩餘量自動估算（依噴的下數）、閒置提醒、今天噴什麼可選場合、日誌當次感受（喜歡／普通／不喜歡）與喜歡率、文字改為咖啡色系。"],

@@ -573,6 +573,73 @@ def flow_calendar(browser, url, base, scheme):
     ctx.close()
 
 
+def flow_v12(browser, url, base):
+    import datetime
+    ctx = browser.new_context(viewport={"width": 390, "height": 860})
+    page = ctx.new_page()
+    errs, reqs = [], []
+    watch(page, errs, reqs, base)
+    page.goto(url)
+    today = datetime.date.today()
+    old = (today - datetime.timedelta(days=90)).isoformat()
+    items = [{"id": "a", "brand": "Le Labo", "name": "Santal 33", "status": "own", "volume": 3, "created": 1700000000000, "updated": 1700000000000},
+             {"id": "b", "brand": "Byredo", "name": "Gypsy", "status": "own", "volume": 50, "buyDate": old, "created": 1700000000001, "updated": 1700000000001},
+             {"id": "c", "brand": "Diptyque", "name": "Do Son", "status": "decant", "created": 1700000000002, "updated": 1700000000002}]
+    wears = [{"id": "w1", "itemId": "a", "date": today.isoformat(), "sprays": 28, "occasion": "date", "feel": "good", "created": 1, "updated": 1},
+             {"id": "w2", "itemId": "c", "date": (today - datetime.timedelta(days=3)).isoformat(), "occasion": "date", "feel": "ok", "created": 2, "updated": 2}]
+    page.evaluate("d => localStorage.setItem('perfume-log-data', JSON.stringify({ schema: 2, items: d.items, wears: d.wears, settings: { lastBackup: Date.now() } }))", {"items": items, "wears": wears})
+    page.reload()
+    ok(items_and_wears(page)["schema"] == 2, "讀取時不該自動改寫資料")
+    card_a = page.locator(".pcard:has-text('Santal 33')")
+    ok(card_a.locator("text=約剩 0.2 mL").count() == 1 and card_a.locator(".flag.warn:has-text('快用完')").count() == 1, "剩餘量估算或快用完標記不對")
+    ok(page.is_visible(".note.warn:has-text('快用完：Santal 33')"), "收藏頁沒有快用完提醒")
+    ok(page.locator(".pcard:has-text('Gypsy') .flag.info:has-text('閒置 90 天')").count() == 1, "閒置標記不對")
+    page.click("summary:has-text('更多篩選')")
+    page.click("[data-act=fidle]")
+    ok(page.locator(".pcard").count() == 1, "閒置篩選不對")
+    page.click("[data-act=fclear] >> nth=0")
+    # 手動校正剩餘量 → 從今天起重算
+    page.click(".pmain:has-text('Santal 33')")
+    page.locator("details[data-open=buy]").evaluate("d => { d.open = true; }")
+    page.click(".seg input[data-f=level][value='full'] >> xpath=..")
+    page.click("[data-act=save]")
+    it = [x for x in items_and_wears(page)["items"] if x["id"] == "a"][0]
+    ok(it["levelDate"] == today.isoformat(), f"手動剩餘量沒記日期 {it.get('levelDate')}")
+    ok(page.locator(".pcard:has-text('Santal 33') >> text=約剩 3 mL").count() == 1, "手動校正後沒從頭算")
+    ok(items_and_wears(page)["schema"] == 3, "存檔後 schema 沒升到 3")
+    # 今天噴什麼：場合
+    page.click("[data-act=tab][data-tab=pick]")
+    page.click("[data-act=pick-season][data-v=spring]")
+    page.click("[data-act=pick-occ][data-v=date]")
+    names = page.locator(".pname").all_inner_texts()
+    ok(names[:1] == ["Do Son"], f"選約會時排序不對 {names}")
+    ok(page.is_visible(".flag.ok:has-text('約會噴過 1 次')"), "沒顯示場合紀錄")
+    # 感受
+    open_log(page)
+    page.click(".wcard >> nth=0")
+    page.click(".seg input[data-w=feel][value='bad'] >> xpath=..")
+    page.click("[data-act=wear-save]")
+    ok(page.locator(".wcard .flag.danger:has-text('不適合')").count() == 1, "感受沒顯示")
+    # 統計：喜歡率、閒置
+    page.click("[data-act=tab][data-tab=stats]")
+    ok(page.is_visible("th:has-text('喜歡率')"), "統計沒有喜歡率欄")
+    ok(page.is_visible("text=閒置提醒（60 天以上沒噴）") and page.locator("section:has-text('閒置提醒') tbody tr").count() == 1, "統計閒置清單不對")
+    check(page, "390 統計 v1.2")
+    # 設定數值
+    page.click("[data-act=tab][data-tab=settings]")
+    page.fill("#s-idle", "30")
+    page.press("#s-idle", "Tab")
+    ok(items_and_wears(page)["settings"]["idleDays"] == 30, "閒置天數沒存")
+    page.fill("#s-ml", "abc")
+    page.press("#s-ml", "Tab")
+    ok(page.input_value("#s-ml") == "0.1", "不合法的數值沒還原")
+    ok(page.is_visible("[data-act=export]:has-text('匯出備份檔')"), "不支援分享時應顯示匯出備份檔")
+    check(page, "390 設定 v1.2")
+    ok(not errs, f"v1.2 流程：console 錯誤 {errs[:3]}")
+    ok(not reqs, f"v1.2 流程：有外部網路請求 {reqs[:3]}")
+    ctx.close()
+
+
 def items_and_wears(page):
     return page.evaluate("() => JSON.parse(localStorage.getItem('perfume-log-data'))")
 
@@ -600,6 +667,7 @@ def main():
                 overview(b, url, base, 1280, "light", a.shots, "1280-light")
             flow(b, url, base, tmp)
             flow_log(b, url, base)
+            flow_v12(b, url, base)
             flow_calendar(b, url, base, "light")
             flow_calendar(b, url, base, "dark")
             if widths:

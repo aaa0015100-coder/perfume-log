@@ -34,7 +34,7 @@ for(let round = 0; round < 60; round++){
   try{
     const raw = Array.from({ length: Math.floor(rnd() * 25) }, randItem);
     run(`S = migrate(${JSON.stringify({ schema: 2, items: raw, wears: [], settings: { lastBackup: pick([0, 1, 1e12, "x"]), seasonMonths: pick([undefined, ["summer"], Array(12).fill("summer")]) } })}).data`);
-    run(`UI.f = ${JSON.stringify({ status: pick(["all","own","want"]), fams: rnd() < .5 ? ["woody"] : [], seasons: rnd() < .5 ? ["winter"] : [], q: pick(["", "le", XSS, "😀"]) })}; UI.sort = ${JSON.stringify(pick(["new","rating","buy","name","bad"]))}; UI.tab="coll"; UI.view="list"; UI.open = { more: ${rnd() < .5} };`);
+    run(`UI.f = ${JSON.stringify({ status: pick(["all","own","want"]), fams: rnd() < .5 ? ["woody"] : [], seasons: rnd() < .5 ? ["winter"] : [], tags: rnd() < .3 ? [XSS] : [], idle: rnd() < .3, q: pick(["", "le", XSS, "😀"]) })}; UI.pickOcc = ${JSON.stringify(pick(["", "date", "x"]))}; S.settings = normalizeSettings(Object.assign({}, S.settings, ${JSON.stringify({ mlPerSpray: pick([undefined, 0.2, "x"]), defaultSprays: pick([undefined, 1, 99]), idleDays: pick([undefined, 7, 0]) })})); UI.sort = ${JSON.stringify(pick(["new","rating","buy","name","bad"]))}; UI.tab="coll"; UI.view="list"; UI.open = { more: ${rnd() < .5} };`);
     check(run("renderTabs()"), "renderTabs");
     check(run("renderCollection()"), "renderCollection");
     check(run("renderList()"), "renderList");
@@ -48,7 +48,7 @@ for(let round = 0; round < 60; round++){
     run(`UI.draft = applyPatch(UI.draft, parsePaste(${JSON.stringify(pasted)}).patch)`);
     check(run("renderForm()"), "renderForm（貼上後）");
     // 日誌、今天噴什麼、日誌表單
-    const wears = Array.from({ length: Math.floor(rnd() * 30) }, () => ({ id: pick([undefined, "w" + Math.floor(rnd() * 5)]), itemId: rnd() < .8 ? "ITEM" : pick(STRS), date: pick(["2026-10-26", "2025-01-01", "bad", undefined, "2026-02-29"]), occasion: pick(["work", "x", undefined]), sprays: VALS(), hours: VALS(), memo: pick(STRS) }));
+    const wears = Array.from({ length: Math.floor(rnd() * 30) }, () => ({ id: pick([undefined, "w" + Math.floor(rnd() * 5)]), itemId: rnd() < .8 ? "ITEM" : pick(STRS), date: pick(["2026-10-26", "2025-01-01", "bad", undefined, "2026-02-29"]), occasion: pick(["work", "x", undefined]), sprays: VALS(), hours: VALS(), memo: pick(STRS), feel: pick(["good", "ok", "bad", "", "x"]), occasion: pick(["date", "work", ""]) }));
     run(`S.wears = S.items.length ? ${JSON.stringify(wears)}.map(w => normalizeWear(Object.assign(w, { itemId: w.itemId === "ITEM" ? S.items[Math.floor(Math.random()*S.items.length)].id : w.itemId }))) : []; UI.view = "list"; UI.logLimit = ${pick([1, 5, 100])}; UI.pickOffset = ${Math.floor(rnd() * 10)}; UI.pickSeason = ${JSON.stringify(pick(["", "winter", "summer"]))}; UI.pickTime = ${JSON.stringify(pick(["", "day", "night"]))};`);
     run(`UI.tab = "log"; UI.logView = ${JSON.stringify(pick(["cal", "list", "x"]))}; UI.calMonth = ${JSON.stringify(pick(["", "2026-10", "2025-01", "bad", "2026-13"]))}; UI.calDay = ${JSON.stringify(pick(["", "2026-10-26", "2026-10-01", "zzz"]))}; UI.calItem = S.items.length && ${rnd() < .5} ? S.items[0].id : ${JSON.stringify(pick(["", "ghost"]))};`); check(run("renderMain()"), "renderLog");
     run(`UI.tab = "pick"`); check(run("renderMain()"), "renderPick");
@@ -72,7 +72,7 @@ for(let round = 0; round < 60; round++){
 
 // 大量資料：500 筆 render、搜尋時間
 run(`S = freshData(); for(let i=0;i<500;i++) S.items.push(normalizeItem({ brand: "Brand"+(i%40), name: "Perfume "+i, families: [FAMS[i%14][0]], seasons: [SEASONS[i%4][0]], notes: { top: ["佛手柑","粉紅胡椒"], mid: ["玫瑰"+i%30], base: ["麝香"] }, rating: i%6, created: i }));
-UI.tab="coll"; UI.view="list"; UI.f={status:"all",fams:[],seasons:[],q:""}; UI.sort="new";`);
+UI.tab="coll"; UI.view="list"; UI.f=emptyFilter(); UI.sort="new";`);
 let t = Date.now(); run("renderCollection()"); const tRender = Date.now() - t;
 t = Date.now(); for(let i = 0; i < 20; i++){ run(`UI.f.q = "玫瑰${i}"; renderList();`); } const tSearch = (Date.now() - t) / 20;
 T.ok(tRender < 150, `500 筆 render 太慢：${tRender} ms`);

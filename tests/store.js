@@ -7,8 +7,8 @@ const T = suite("store");
   {
     const { run, ls } = load();
     T.eq(run("store.load()"), { data: run("freshData()") }, "空的 localStorage 回傳預設資料");
-    T.eq(run("freshData().schema"), 2, "schema 2");
-    run(`S = { schema: 2, items: [normalizeItem({ brand: "Le Labo", name: "Santal 33", status: "own", conc: "edp", families: ["woody","leather"], notes: { top: ["小荳蔻"], mid: ["鳶尾"], base: ["檀香"] }, buyDate: "2026-01-31", price: "6,800", volume: "50" })], wears: [], settings: normalizeSettings({}) }; S.wears = [normalizeWear({ itemId: S.items[0].id, date: "2026-10-01", occasion: "work", sprays: "3", hours: "6.5", memo: "第一天" })];`);
+    T.eq(run("freshData().schema"), 3, "schema 3");
+    run(`S = { schema: 3, items: [normalizeItem({ brand: "Le Labo", name: "Santal 33", status: "own", conc: "edp", families: ["woody","leather"], notes: { top: ["小荳蔻"], mid: ["鳶尾"], base: ["檀香"] }, buyDate: "2026-01-31", price: "6,800", volume: "50" })], wears: [], settings: normalizeSettings({}) }; S.wears = [normalizeWear({ itemId: S.items[0].id, date: "2026-10-01", occasion: "work", sprays: "3", hours: "6.5", memo: "第一天" })];`);
     T.ok(run("store.save(S)") === true, "save 成功");
     const back = run("store.load()").data;
     T.eq(back, run("S"), "save → load 相同");
@@ -22,7 +22,7 @@ const T = suite("store");
     const v1 = { schema: 1, items: [{ id: "a", brand: "A", name: "B" }], settings: { lastBackup: 123 } };
     const { run } = load({ localStorage: fakeStorage({ "perfume-log-data": JSON.stringify(v1) }) });
     const d = run("store.load()").data;
-    T.eq([d.schema, d.items.length, d.wears, d.settings.lastBackup, d.settings.seasonMonths.length], [2, 1, [], 123, 12], "v1 資料升級到 v2 不掉資料");
+    T.eq([d.schema, d.items.length, d.wears, d.settings.lastBackup, d.settings.seasonMonths.length], [3, 1, [], 123, 12], "v1 資料升級到 v3 不掉資料");
     const v2 = { schema: 2, items: [{ id: "a", brand: "A", name: "B" }], wears: [{ id: "w1", itemId: "a", date: "2026-02-30x" }, { id: "w2", itemId: "ghost", date: "2026-01-01" }, null], settings: { seasonMonths: ["x"] } };
     const { run: r2 } = load({ localStorage: fakeStorage({ "perfume-log-data": JSON.stringify(v2) }) });
     const d2 = r2("store.load()").data;
@@ -77,6 +77,43 @@ const T = suite("store");
     T.eq([run(`shiftMonth("2026-01", -1)`), run(`shiftMonth("2026-12", 1)`), run(`shiftMonth("2026-10", 0)`)], ["2025-12", "2027-01", "2026-10"], "月份加減跨年");
     const h = run(`(() => { const W = d => normalizeWear({ itemId: "a", date: d }); const h = heatData([W("2026-10-26"), W("2026-10-26"), W("2026-10-25"), W("2026-10-24"), W("2026-10-20"), W("2025-01-01")], "2026-10-26", 53); return { len: h.cells.length, first: h.start, firstDow: new Date(h.start + "T00:00:00").getDay(), last: h.cells[h.cells.length - 1], days: h.days, total: h.total, best: h.best, current: h.current }; })()`);
     T.eq(h, { len: 52 * 7 + 2, first: "2025-10-26", firstDow: 0, last: { date: "2026-10-26", n: 2 }, days: 4, total: 5, best: 3, current: 3 }, "全年圖：從週日開始、到今天、連續天數");
+  }
+  // --- v1.2：剩餘量、閒置、場合、感受、設定 ---
+  {
+    const { run } = load();
+    const st = run(`normalizeSettings({})`);
+    T.eq([st.mlPerSpray, st.defaultSprays, st.idleDays], [0.1, 3, 60], "設定預設值");
+    T.eq(run(`(() => { const s = normalizeSettings({ mlPerSpray: "0.15", defaultSprays: "abc", idleDays: 2 }); return [s.mlPerSpray, s.defaultSprays, s.idleDays]; })()`), [0.15, 3, 60], "設定值檢查範圍");
+    const r = run(`(() => {
+      const st = normalizeSettings({});
+      const W = (itemId, date, sprays) => normalizeWear({ itemId, date, sprays });
+      const wears = [W("a","2026-10-01",5), W("a","2026-10-02"), W("a","2026-10-10",10), W("b","2026-10-03")];
+      const a = normalizeItem({ id: "a", brand: "x", name: "a", status: "own", volume: 10 });
+      const a2 = normalizeItem({ id: "a", brand: "x", name: "a", status: "own", volume: 10, level: "50", levelDate: "2026-10-05" });
+      const tiny = normalizeItem({ id: "b", brand: "x", name: "b", status: "decant", volume: 2 });
+      const want = normalizeItem({ id: "a", brand: "x", name: "w", status: "want", volume: 50 });
+      const nov = normalizeItem({ id: "a", brand: "x", name: "n", status: "own" });
+      return [remainInfo(a, wears, st), remainInfo(a2, wears, st), remainInfo(tiny, wears, st).low, remainInfo(want, wears, st), remainInfo(nov, wears, st)];
+    })()`);
+    T.eq(r, [{ remain: 8.2, pct: 0.82, times: 27, low: false }, { remain: 4, pct: 0.4, times: 13, low: false }, false, null, null], "剩餘量估算（手動校正後只扣之後的）");
+    T.eq(run(`remainInfo(normalizeItem({ id:"c", brand:"x", name:"c", status:"own", volume: 3 }), [normalizeWear({ itemId:"c", date:"2026-01-01", sprays: 30 })], normalizeSettings({})).low`), true, "估算剩不到 10% 標快用完");
+    const up = run(`(() => { const d = migrate({ schema: 2, items: [{ id:"a", brand:"x", name:"y", level:"50", updated: Date.parse("2026-03-04T10:00:00") , created: 1 }], wears: [] }).data; return d.items[0].levelDate; })()`);
+    T.eq(up, "2026-03-04", "v2 → v3：舊剩餘量用最後修改日當起算日");
+    const idle = run(`(() => { const wi = wearIndex([{ itemId: "a", date: "2026-08-01" }]); const it = (id, o) => normalizeItem(Object.assign({ id, brand: "x", name: id, status: "own", created: Date.parse("2026-01-01T09:00:00") }, o));
+      return [idleDaysOf(it("a"), wi, "2026-10-27"), idleDaysOf(it("b", { buyDate: "2026-10-01" }), wi, "2026-10-27"), idleDaysOf(it("c"), wi, "2026-10-27"), idleDaysOf(it("d", { status: "want" }), wi, "2026-10-27")]; })()`);
+    T.eq(idle, [87, 26, 299, null], "閒置天數：上次噴 → 購買日 → 新增日");
+    const occ = run(`(() => {
+      const it = id => normalizeItem({ id, brand: "B", name: id, status: "own" });
+      const items = [it("x"), it("y"), it("z")];
+      const W = (itemId, date, occasion, feel) => normalizeWear({ itemId, date, occasion, feel });
+      const wears = [W("x", "2026-01-01"), W("y", "2026-10-20", "date", "ok"), W("z", "2026-10-25", "date", "good")];
+      const wi = wearIndex(wears);
+      return [pickCandidates(items, wi, "autumn", "day", "2026-10-27", "", wears).map(x => x.id), pickCandidates(items, wi, "autumn", "day", "2026-10-27", "date", wears).map(x => x.id)];
+    })()`);
+    T.eq(occ, [["x", "y", "z"], ["z", "y", "x"]], "今天噴什麼：場合 👍 優先 → 場合噴過 → 其他");
+    T.eq(run(`normalizeWear({ itemId: "a", feel: "good", layerId: "L1" }).feel + normalizeWear({ itemId: "a", feel: "bad" }).feel + normalizeWear({ itemId: "a", feel: "zz" }).feel`), "goodbad", "感受正規化");
+    const st2 = run(`(() => { const items = [normalizeItem({ id: "a", brand: "x", name: "y", status: "own" })]; const W = f => normalizeWear({ itemId: "a", date: "2026-10-01", feel: f }); return computeStats(items, [W("good"), W("good"), W("bad"), W("")], "all", "2026-10-27").top.map(x => [x.good, x.rated]); })()`);
+    T.eq(st2, [[2, 3]], "喜歡率計算");
   }
   // --- 寫入失敗 ---
   {

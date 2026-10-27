@@ -119,15 +119,15 @@ def overview(browser, url, base, W, scheme, shots, tag):
         page.screenshot(path=os.path.join(shots, f"{tag}-log.png"))
     page.click("[data-act=wear-edit] >> nth=0")
     check(page, f"{where} 日誌表單")
-    page.click("[data-act=tab][data-tab=pick]")
+    go_tab(page, "pick")
     check(page, f"{where} 今天噴什麼")
     if shots and W == 390:
         page.screenshot(path=os.path.join(shots, f"{tag}-pick.png"))
-    page.click("[data-act=tab][data-tab=stats]")
+    go_tab(page, "stats")
     check(page, f"{where} 統計")
     if shots and W in (390, 1280):
         page.screenshot(path=os.path.join(shots, f"{tag}-stats.png"), full_page=True)
-    page.click("[data-act=tab][data-tab=settings]")
+    go_tab(page, "settings")
     check(page, f"{where} 設定")
     if shots and W == 390 and scheme == "light":
         page.screenshot(path=os.path.join(shots, f"{tag}-settings.png"), full_page=True)
@@ -210,7 +210,7 @@ def flow(browser, url, base, tmp):
     ok(page.is_visible("text=Santal 33 <b>"), "名稱沒顯示")
 
     # 匯出
-    page.click("[data-act=tab][data-tab=settings]")
+    go_tab(page, "settings")
     with page.expect_download() as dl:
         page.click("[data-act=export]")
     bk = os.path.join(tmp, "backup.json"); dl.value.save_as(bk)
@@ -231,7 +231,7 @@ def flow(browser, url, base, tmp):
     page.evaluate("() => new Promise(r => { localStorage.removeItem('perfume-log-data'); const q = indexedDB.deleteDatabase('perfume-log'); q.onsuccess = q.onerror = q.onblocked = () => r(); })")
     page.reload()
     ok(page.is_visible("text=還沒有香水"), "清空後不是空狀態")
-    page.click("[data-act=tab][data-tab=settings]")
+    go_tab(page, "settings")
     page.set_input_files("[data-file=import]", bk)
     page.wait_for_selector(".note:has-text('檔案內有')", timeout=5000)
     pv = page.locator(".note:has-text('檔案內有')").inner_text()
@@ -240,11 +240,11 @@ def flow(browser, url, base, tmp):
     page.wait_for_selector("text=已合併")
     after = items_of(page)
     ok(after == before, "匯出 → 清空 → 匯入後資料不同")
-    page.click("[data-act=tab][data-tab=coll]")
+    go_tab(page, "coll")
     page.wait_for_selector(".pcard img[src^='blob:']", timeout=5000)
 
     # 取代（要確認）
-    page.click("[data-act=tab][data-tab=settings]")
+    go_tab(page, "settings")
     page.set_input_files("[data-file=import]", bk)
     page.wait_for_selector("[data-act=imp-replace]", timeout=5000)
     page.click("[data-act=imp-replace]")
@@ -258,12 +258,12 @@ def flow(browser, url, base, tmp):
     ok(page.get_attribute("html", "data-theme") == "dark", "主題沒切到深色")
     page.reload()
     ok(page.get_attribute("html", "data-theme") == "dark", "主題重新整理後沒保留")
-    page.click("[data-act=tab][data-tab=settings]")
+    go_tab(page, "settings")
     page.click(".seg label:has-text('自動')")
     ok(page.get_attribute("html", "data-theme") is None, "主題沒切回自動")
 
     # 刪除 → 復原 → 再刪除 → 照片也清掉
-    page.click("[data-act=tab][data-tab=coll]")
+    go_tab(page, "coll")
     page.click(".pmain")
     page.click("[data-act=del]")
     ok(page.locator(".pcard").count() == 0, "刪除後還在")
@@ -289,7 +289,7 @@ def flow(browser, url, base, tmp):
     ok(page.locator(".wcard").count() == 100, "日誌沒有分頁顯示 100 筆")
     page.click("[data-act=log-more]")
     ok(page.locator(".wcard").count() == 300, "顯示更早的紀錄沒作用")
-    page.click("[data-act=tab][data-tab=pick]")
+    go_tab(page, "pick")
     page.click("[data-act=pick-season][data-v=winter]")
     ok(page.locator(".pcard").count() == 3, "500 筆時今天噴什麼不是 3 個候選")
     first = page.locator(".pname").first.inner_text()
@@ -339,7 +339,7 @@ def flow_log(browser, url, base):
     w = items_and_wears(page)["wears"][0]
     ok(w["occasion"] == "date" and w["sprays"] == 3 and w["hours"] == 6.5, f"日誌存檔不對 {w}")
     # 再按一次今天噴：不重複
-    page.click("[data-act=tab][data-tab=coll]")
+    go_tab(page, "coll")
     page.click("[data-act=wear][data-id=a]")
     ok(len(items_and_wears(page)["wears"]) == 1, "同一天重複記錄")
     # 補記一筆過去的
@@ -353,10 +353,11 @@ def flow_log(browser, url, base):
     # 離開未儲存的表單要確認
     page.click(".wcard >> nth=0")
     page.fill("#w-memo", "改了沒存")
-    page.click("[data-act=tab][data-tab=coll]")
-    ok(len(dialogs) == 1 and page.is_visible("text=編輯穿香紀錄"), "未儲存離開沒有確認（或取消後仍離開）")
+    ok(not page.is_visible("[data-act=tab][data-tab=coll]"), "手機表單中應隱藏底部分頁")
     page.click("[data-act=cancel] >> nth=0")
-    ok(len(dialogs) == 2, "按返回沒有確認")
+    ok(len(dialogs) == 1 and page.is_visible("text=編輯穿香紀錄"), "未儲存離開沒有確認（或取消後仍離開）")
+    page.click("[data-act=cancel] >> nth=1")
+    ok(len(dialogs) == 2, "按取消沒有確認")
     # 刪除日誌 → 復原
     page.evaluate("() => { window.confirm = () => true; }")
     page.click("[data-act=cancel] >> nth=0")
@@ -366,7 +367,7 @@ def flow_log(browser, url, base):
     page.click("#toast [data-act=undo]")
     ok(page.locator(".wcard").count() == 2, "刪除日誌復原失敗")
     # 刪除香水 → 日誌一起刪 → 復原一起回來
-    page.click("[data-act=tab][data-tab=coll]")
+    go_tab(page, "coll")
     page.click(".pmain >> nth=0")
     page.click("[data-act=del]")
     ok(page.is_visible("#toast >> text=含 1 筆日誌"), "刪除香水沒提示日誌")
@@ -378,7 +379,7 @@ def flow_log(browser, url, base):
     names = page.locator(".pname").all_inner_texts()
     ok(names[:2] == ["Santal 33", "Gypsy Water"], f"最近穿著排序不對 {names}")
     # 今天噴什麼
-    page.click("[data-act=tab][data-tab=pick]")
+    go_tab(page, "pick")
     ok(page.locator(".pcard").count() == 2, "今天噴什麼候選數不對")
     ok(page.locator(".pname").first.inner_text() == "Gypsy Water", "今天噴過的沒排到後面")
     page.click("[data-act=pick-season][data-v=summer]")
@@ -386,21 +387,21 @@ def flow_log(browser, url, base):
     page.click("[data-act=wear][data-id=b]")
     ok(page.is_visible("[data-act=wear][data-id=b]:has-text('✓ 今天')"), "就噴這瓶沒記錄")
     # 季節月份設定
-    page.click("[data-act=tab][data-tab=settings]")
+    go_tab(page, "settings")
     page.select_option("#m-8", "summer")
     ok(items_and_wears(page)["settings"]["seasonMonths"][8] == "summer", "季節月份沒存")
     page.click("[data-act=months-reset]")
     ok(items_and_wears(page)["settings"]["seasonMonths"][8] == "autumn", "季節月份恢復預設失敗")
     check(page, "390 設定（季節）")
     # 統計
-    page.click("[data-act=tab][data-tab=stats]")
-    ok(page.is_visible(".rsum >> text=正裝 1・分裝 1・想買 1"), "統計擁有數不對")
+    go_tab(page, "stats")
+    ok(page.is_visible(".rsum >> text=正裝 1，分裝 1，想買 1"), "統計擁有數不對")
     ok(page.locator("tbody tr").count() == 2, "穿最多次表格列數不對")
     page.click("[data-act=stat-period][data-v='90']")
     ok(page.get_attribute("[data-act=stat-period][data-v='90']", "aria-pressed") == "true", "統計期間切換沒作用")
     check(page, "390 統計")
     # 願望清單欄位：改成想買才出現
-    page.click("[data-act=tab][data-tab=coll]")
+    go_tab(page, "coll")
     page.click(".pmain:has-text('No.5')")
     ok(page.is_visible("text=願望清單"), "想買的香水沒有願望清單區塊")
     page.fill("#f-targetPrice", "4,200")
@@ -481,7 +482,7 @@ def flow_options(browser, url, base, W, scheme):
     check(page, f"{where} 日誌表單全部選項")
     page.click("[data-act=cancel] >> nth=0")
     # 今天噴什麼
-    page.click("[data-act=tab][data-tab=pick]")
+    go_tab(page, "pick")
     for v in ["spring", "summer", "autumn", "winter"]:
         page.click(f"[data-act=pick-season][data-v={v}]")
         for t in ["day", "night"]:
@@ -490,14 +491,14 @@ def flow_options(browser, url, base, W, scheme):
     if page.locator("[data-act=pick-more]").count():
         page.click("[data-act=pick-more]")
     # 統計
-    page.click("[data-act=tab][data-tab=stats]")
+    go_tab(page, "stats")
     for v in ["all", "year", "90"]:
         page.click(f"[data-act=stat-period][data-v='{v}']")
         check(page, f"{where} 統計 {v}")
     page.click("[data-act=stat-all]")
     check(page, f"{where} 統計全部")
     # 設定
-    page.click("[data-act=tab][data-tab=settings]")
+    go_tab(page, "settings")
     for t in ["深色", "淺色", "自動"]:
         page.click(f".seg label:has-text('{t}')")
         check(page, f"{where} 主題 {t}")
@@ -510,8 +511,14 @@ def flow_options(browser, url, base, W, scheme):
     ctx.close()
 
 
+def go_tab(page, t):
+    if page.locator("body.in-form").count():
+        page.click("[data-act=cancel] >> nth=0")
+    page.click(f"[data-act=tab][data-tab={t}]")
+
+
 def open_log(page, view="list"):
-    page.click("[data-act=tab][data-tab=log]")
+    go_tab(page, "log")
     page.click(f"[data-act=log-view][data-v={view}]")
 
 
@@ -532,7 +539,7 @@ def flow_calendar(browser, url, base, scheme):
              {"id": "a3", "itemId": "n", "date": today.isoformat(), "created": 3}, {"id": "a4", "itemId": "f", "date": d2, "created": 4}]
     page.evaluate("d => localStorage.setItem('perfume-log-data', JSON.stringify({ schema: 2, items: d.items, wears: d.wears, settings: { lastBackup: Date.now() } }))", {"items": items, "wears": wears})
     page.reload()
-    page.click("[data-act=tab][data-tab=log]")
+    go_tab(page, "log")
     ok(page.locator(".cal").count() == 1, f"{scheme} 日誌預設不是月曆")
     cell = page.locator(f".cday[data-v='{today.isoformat()}']")
     ok(cell.locator(".cdot").count() == 2 and cell.locator(".cmore").inner_text() == "+1", f"{scheme} 一天 3 筆應顯示 2 點＋1")
@@ -559,7 +566,7 @@ def flow_calendar(browser, url, base, scheme):
     page.click("[data-act=cal-today]")
     ok(page.is_visible(f"text={today.year} 年 {today.month} 月"), f"{scheme} 回到本月失敗")
     # 全年圖
-    page.click("[data-act=tab][data-tab=stats]")
+    go_tab(page, "stats")
     ok(page.locator(".heat .hc").count() >= 365, f"{scheme} 全年圖格數不對")
     ok(page.locator(f".hc.l3[data-v='{today.isoformat()}']").count() == 1, f"{scheme} 今天 3 次應是最深色")
     sl = page.evaluate("() => { const h = document.getElementById('heatwrap'); return [h.scrollLeft, h.scrollWidth - h.clientWidth]; }")
@@ -608,7 +615,7 @@ def flow_v12(browser, url, base):
     ok(page.locator(".pcard:has-text('Santal 33') >> text=約剩 3 mL").count() == 1, "手動校正後沒從頭算")
     ok(items_and_wears(page)["schema"] == 3, "存檔後 schema 沒升到 3")
     # 今天噴什麼：場合
-    page.click("[data-act=tab][data-tab=pick]")
+    go_tab(page, "pick")
     page.click("[data-act=pick-season][data-v=spring]")
     page.click("[data-act=pick-occ][data-v=date]")
     names = page.locator(".pname").all_inner_texts()
@@ -619,14 +626,14 @@ def flow_v12(browser, url, base):
     page.click(".wcard >> nth=0")
     page.click(".seg input[data-w=feel][value='bad'] >> xpath=..")
     page.click("[data-act=wear-save]")
-    ok(page.locator(".wcard .flag.danger:has-text('不適合')").count() == 1, "感受沒顯示")
+    ok(page.locator(".wcard .flag.danger:has-text('不喜歡')").count() == 1, "感受沒顯示")
     # 統計：喜歡率、閒置
-    page.click("[data-act=tab][data-tab=stats]")
+    go_tab(page, "stats")
     ok(page.is_visible("th:has-text('喜歡率')"), "統計沒有喜歡率欄")
     ok(page.is_visible("text=閒置提醒（60 天以上沒噴）") and page.locator("section:has-text('閒置提醒') tbody tr").count() == 1, "統計閒置清單不對")
     check(page, "390 統計 v1.2")
     # 設定數值
-    page.click("[data-act=tab][data-tab=settings]")
+    go_tab(page, "settings")
     page.fill("#s-idle", "30")
     page.press("#s-idle", "Tab")
     ok(items_and_wears(page)["settings"]["idleDays"] == 30, "閒置天數沒存")
@@ -713,11 +720,11 @@ def flow_v13(browser, url, base):
     page.click("[data-act=wear-save]")
     ws = items_and_wears(page)["wears"]
     ok(len(ws) == 1 and ws[0]["layerId"] == "", f"移除疊香後不對 {ws}")
-    page.click("[data-act=tab][data-tab=log]")
+    go_tab(page, "log")
     page.click("[data-act=log-view][data-v=cal]")
     ok(page.locator(f".cday[data-v='{today}'] .cdot").count() == 1, "月曆點數不對")
     # 統計
-    page.click("[data-act=tab][data-tab=stats]")
+    go_tab(page, "stats")
     ok(page.is_visible("text=各品牌（擁有＋分裝，前 10）") and page.is_visible("text=每月花費（近 12 個月）"), "統計新區塊沒出現")
     check(page, "390 統計 v1.3")
     ok(not errs, f"v1.3 流程：console 錯誤 {errs[:3]}")
